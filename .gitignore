@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment / Secrets
+.env
+.env.*
+
+# Allowing a safe template to be committed
+!.env.example
+
+# Testing
+.pytest_cache/
+
+# IDE/ OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Raw and generated recipe datasets
+data/raw/*
+data/processed/*
+
+# Keeping directory structure in Git
+!data/raw/.gitkeep
+!data/processed/.gitkeep
