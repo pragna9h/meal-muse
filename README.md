@@ -340,35 +340,7 @@ Application policy
 
 #### 12. Testing the Complete Pipeline
 
-The completed API was manually tested against multiple scenarios:
-
-- basic ingredient recommendations
-- maximum-time constraints
-- excluded ingredients
-- required ingredients
-- cuisine preferences
-- nutrition preferences
-- multiple simultaneous constraints
-- underspecified requests
-- minimal requests
-- no-match scenarios
-
-The clarification issue discovered during this testing was fixed and retested.
-
-A first automated test suite was then introduced using **Pytest**, covering:
-
-- health endpoint behavior
-- excluded ingredient filtering
-- required ingredient enforcement
-- recipe-time normalization
-- valid recipe-time preservation
-- ingredient-based ranking
-
-Current result:
-
-```text
-6 passed
-```
+For the complete Day 1 validation history — including command-line smoke tests, API test scenarios, failures discovered during development, fixes, retests, and the automated regression suite — see [`docs/testing.md`](docs/testing.md).
 
 #### Day 1 Outcome
 
