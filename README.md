@@ -62,7 +62,7 @@ PostgreSQL       pgvector
 
 ### Phase I — Building the First End-to-End Vertical Slice
 
-The goal for Day 1 was not to build the complete production architecture immediately. Instead, the focus was to establish a working vertical slice that could take a natural-language request and return real, ranked meal recommendations.
+The goal for Phase I was not to build the complete production architecture immediately. Instead, the focus was to establish a working vertical slice that could take a natural-language request and return real, ranked meal recommendations.
 
 This gave the project a functional baseline before introducing PostgreSQL, vector search, orchestration, caching, observability, and cloud infrastructure.
 
@@ -357,11 +357,11 @@ Application policy
 
 #### 12. Testing the Complete Pipeline
 
-For the complete Day 1 validation history — including command-line smoke tests, API test scenarios, failures discovered during development, fixes, retests, and the automated regression suite — see [`docs/testing.md`](docs/testing.md).
+For the complete Phase I validation history — including command-line smoke tests, API test scenarios, failures discovered during development, fixes, retests, and the automated regression suite — see [`docs/testing.md`](docs/testing.md).
 
-#### Day 1 Outcome
+#### Phase I Outcome
 
-By the end of Day 1, MealMuse had progressed from an empty backend structure to a working recommendation system:
+By the end of Phase I, MealMuse had progressed from an empty backend structure to a working recommendation system:
 
 ```text
 Natural-Language Request
@@ -389,9 +389,9 @@ The architecture is intentionally evolutionary: the local recipe store and deter
 
 ---
 
-#### Day 2 Outcome
+#### Phase II Outcome
 
-By the end of Day 2:
+By the end of Phase II:
 
 ```
 Recipes in PostgreSQL:   50,514
