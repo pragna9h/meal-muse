@@ -9,6 +9,10 @@ The project is being built as an end-to-end **Agentic AI system**, combining LLM
 - Natural-language meal requests
 - Structured intent extraction using an LLM
 - Ingredient-aware recipe retrieval
+- PostgreSQL-backed runtime recipe store
+- Semantic recipe retrieval using OpenAI embeddings + pgvector
+- Structured retrieval using indexed recipe metadata
+- Hybrid structured + semantic candidate retrieval
 - Hard-constraint filtering
   - Required ingredients
   - Excluded ingredients
@@ -18,27 +22,40 @@ The project is being built as an end-to-end **Agentic AI system**, combining LLM
 - Nutrition and recipe metadata
 - Clarification handling for underspecified requests
 - FastAPI backend with structured request/response models
-- Automated unit and API tests
+- Batched and resumable embedding generation with rate-limit handling
+- Unit, API, and integration tests
 - Recipe processing pipeline for 50K+ recipes
 
 ## Current Recommendation Pipeline
 
 ```text
-User Request
-     ↓
-FastAPI
-     ↓
-LLM Intent Extraction
-     ↓
-Structured Parsed Intent
-     ↓
-Candidate Recipe Retrieval
-     ↓
-Hard-Constraint Filtering
-     ↓
-Deterministic Ranking
-     ↓
-Top 5 Recommendations
+Natural-Language Request
+          ↓
+     FastAPI /chat
+          ↓
+ OpenAI Intent Extraction
+          ↓
+      ParsedIntent
+          ↓
+ Deterministic Clarification
+          ↓
+ ┌────────┴────────┐
+ ↓                 ↓
+Structured       Semantic
+Retrieval        Retrieval
+ ↓                 ↓
+PostgreSQL       pgvector
+ └────────┬────────┘
+          ↓
+ Merge + Deduplicate
+          ↓
+ Hard-Constraint Filtering
+          ↓
+ Deterministic Ranking
+          ↓
+       Top 5
+          ↓
+ Structured API Response
 ```
 
 ## Development Journey
@@ -372,6 +389,25 @@ The architecture is intentionally evolutionary: the local recipe store and deter
 
 ---
 
+#### Day 2 Outcome
+
+By the end of Day 2:
+
+```
+Recipes in PostgreSQL:   50,514
+Recipes embedded:        50,514
+Embedding dimensions:    1536
+Structured retrieval:    PASS
+Semantic retrieval:      PASS
+Hybrid retrieval:        PASS
+End-to-end /chat:         PASS
+Regression tests:         PASS
+Integration tests:        PASS
+```
+
+---
+
+
 ## Tech Stack
 
 ### Current
@@ -380,15 +416,20 @@ The architecture is intentionally evolutionary: the local recipe store and deter
 - FastAPI
 - Pydantic
 - OpenAI API
+- PostgreSQL
+- pgvector
+- SQLAlchemy
+- Psycopg
+- Docker
 - Pytest
 
 ### Planned
 
 - React + TypeScript
-- PostgreSQL + pgvector
-- Redis
+- Redis - if justified by runtime caching needs
 - Agent orchestration
-- Docker + Kubernetes
+- Dockerized application services
+- Kubernetes
 - GCP
 - CI/CD
 - OpenTelemetry
@@ -405,31 +446,50 @@ The architecture is intentionally evolutionary: the local recipe store and deter
 - [x] FastAPI backend
 - [x] Structured LLM intent extraction
 - [x] 50K+ recipe processing pipeline
-- [x] Runtime recipe store
-- [x] Candidate retrieval
+- [x] Initial candidate retrieval
 - [x] Hard-constraint filtering
 - [x] Deterministic ranking
 - [x] Top-5 recommendations
 - [x] Clarification handling
 - [x] Initial automated tests
 
-### Next
-
 **Phase II — Production Retrieval Layer**
 
+- [x] Dockerized PostgreSQL + pgvector
+- [x] 50,514-recipe PostgreSQL ingestion
+- [x] Semantic search text generation
+- [x] OpenAI recipe embeddings
+- [x] 50,514 vectors stored in pgvector
+- [x] Batched/resumable embedding generation
+- [x] Rate-limit retry/backoff handling
+- [x] Structured PostgreSQL retrieval
+- [x] GIN indexes for structured retrieval
+- [x] pgvector semantic retrieval
+- [x] Hybrid candidate retrieval
+- [x] Retrieval deduplication
+- [x] Existing hard filtering + ranking integration
+- [x] End-to-end hybrid `/chat` pipeline
+- [x] Retrieval integration tests
+
+### Next
+
+**Phase III — Agentic Orchestration**
+
 ```text
-PostgreSQL
-    +
- pgvector
-    ↓
-Embeddings
-    ↓
-Hybrid Retrieval
-    ↓
-Improved Ranking
+User Request
+     ↓
+Agent Orchestrator
+     ↓
+Tool Selection / Tool Calling
+     ↓
+Retrieval + Recipe Operations
+     ↓
+Deterministic Policies
+     ↓
+Recommendation Response
 ```
 
-Later phases will introduce agent orchestration, React + TypeScript, authentication, Redis, integration testing, failure handling, structured logging, tracing, rate limiting, Docker/Kubernetes, CI/CD, observability, GCP deployment, load testing, and architecture documentation.
+--- 
 
 ## Goal
 

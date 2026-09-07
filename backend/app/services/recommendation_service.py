@@ -7,9 +7,8 @@ from backend.app.services.recipe_ranker import (
     RankedRecipe,
     rank_recipes,
 )
-from backend.app.services.recipe_search import (
-    search_recipe_candidates,
-)
+from backend.app.retrieval.recipe_retriever import hybrid_retrieve
+from backend.app.repositories.recipe_repository import get_recipes_by_ids
 
 from backend.app.services.recipe_time import (
     get_effective_total_time,
@@ -75,15 +74,15 @@ def ranked_recipe_to_recommendation(
     )
 
 
-def recommend_meals(
-    parsed_intent: ParsedIntent,
-    candidate_limit: int = 200,
-    recommendation_limit: int = 5,
-) -> list[MealRecommendation]:
-    candidates = search_recipe_candidates(
-        parsed_intent,
-        limit=candidate_limit,
-    )
+def recommend_meals( parsed_intent: ParsedIntent, candidate_limit: int = 200, recommendation_limit: int = 5 ) -> list[MealRecommendation]:
+    retrieved_candidates = hybrid_retrieve(parsed_intent)
+
+    candidate_ids = [
+        candidate["recipe_id"]
+        for candidate in retrieved_candidates[:candidate_limit]
+    ]
+
+    candidates = get_recipes_by_ids(candidate_ids)
 
     filtered = filter_recipes(
         candidates,

@@ -1009,18 +1009,18 @@ http://127.0.0.1:8000/docs
 
 The following scenarios were tested.
 
-| Scenario | Result |
-|---|---|
-| Basic ingredient recommendation | PASS |
-| Time constraint | PASS |
-| Excluded ingredient | PASS |
-| Required ingredient | PASS |
-| Cuisine preference | PASS |
-| Nutrition preference | PASS |
-| Multiple constraints together | PASS |
-| Clarification | INITIAL FAIL → FIXED → PASS |
-| Very minimal request | PASS |
-| No matching constraints | PASS |
+| Scenario                        | Result                      |
+| ------------------------------- | --------------------------- |
+| Basic ingredient recommendation | PASS                        |
+| Time constraint                 | PASS                        |
+| Excluded ingredient             | PASS                        |
+| Required ingredient             | PASS                        |
+| Cuisine preference              | PASS                        |
+| Nutrition preference            | PASS                        |
+| Multiple constraints together   | PASS                        |
+| Clarification                   | INITIAL FAIL → FIXED → PASS |
+| Very minimal request            | PASS                        |
+| No matching constraints         | PASS                        |
 
 ---
 
@@ -1647,13 +1647,13 @@ Pytest regression suite
 
 Testing directly resulted in multiple implementation improvements.
 
-| Issue | How It Was Discovered | Resolution | Final Status |
-|---|---|---|---|
-| Recipe model validator/schema problem | Model import smoke test | Removed obsolete/conflicting model code | PASS |
-| Empty/malformed nutrition values caused parser failure | Single-recipe loader test | Made numeric parsing tolerant of missing values | PASS |
-| `total_time_minutes = 0` treated as real time | Recommendation pipeline testing | Added effective-time resolution and unknown-time handling | PASS |
-| Underspecified request returned arbitrary recipes | Swagger clarification test | Added deterministic clarification policy | PASS |
-| Direct `pytest.exe` execution blocked by Windows environment | Automated test execution | Run tests using `python -m pytest -v` | PASS |
+| Issue                                                        | How It Was Discovered           | Resolution                                                | Final Status |
+| ------------------------------------------------------------ | ------------------------------- | --------------------------------------------------------- | ------------ |
+| Recipe model validator/schema problem                        | Model import smoke test         | Removed obsolete/conflicting model code                   | PASS         |
+| Empty/malformed nutrition values caused parser failure       | Single-recipe loader test       | Made numeric parsing tolerant of missing values           | PASS         |
+| `total_time_minutes = 0` treated as real time                | Recommendation pipeline testing | Added effective-time resolution and unknown-time handling | PASS         |
+| Underspecified request returned arbitrary recipes            | Swagger clarification test      | Added deterministic clarification policy                  | PASS         |
+| Direct `pytest.exe` execution blocked by Windows environment | Automated test execution        | Run tests using `python -m pytest -v`                     | PASS         |
 
 These failures were useful because they exposed assumptions that were not visible from static code inspection alone.
 
@@ -1661,36 +1661,36 @@ These failures were useful because they exposed assumptions that were not visibl
 
 # 20. Day 1 Test Matrix
 
-| Layer | Test | Method | Status |
-|---|---|---|---|
-| Configuration | OpenAI connectivity | Smoke-test script | PASS |
-| Intent | Basic structured extraction | Smoke-test script | PASS |
-| Intent | Complex multi-constraint extraction | Smoke-test script | PASS |
-| Models | Recipe model import | CLI | PASS |
-| Models | Recipe schema | CLI | PASS |
-| Data | Single recipe parsing | CLI/module | PASS after fix |
-| Data | Complete 50K+ corpus | CLI/module | PASS |
-| Data | Processed corpus generation | CLI/module | PASS |
-| Store | Runtime recipe loading | CLI | PASS |
-| Store | Runtime caching | CLI | PASS |
-| Retrieval | Ingredient candidates | CLI | PASS |
-| Filtering | Maximum time | CLI | PASS |
-| Filtering | Excluded ingredient | CLI | PASS |
-| Filtering | Required ingredient | CLI | PASS |
-| Ranking | Ingredient relevance | CLI | PASS |
-| Service | Top-5 recommendation pipeline | CLI | PASS |
-| Edge Case | Missing/zero time | CLI | PASS after fix |
-| API | Basic recommendation | Swagger | PASS |
-| API | Time constraint | Swagger | PASS |
-| API | Excluded ingredient | Swagger | PASS |
-| API | Required ingredient | Swagger | PASS |
-| API | Cuisine preference | Swagger | PASS |
-| API | Nutrition preference | Swagger | PASS |
-| API | Multiple constraints | Swagger | PASS |
-| API | Clarification | Swagger | PASS after fix |
-| API | Minimal usable request | Swagger | PASS |
-| API | Restrictive/no-match request | Swagger | PASS |
-| Regression | Automated suite | Pytest | 6/6 PASS |
+| Layer         | Test                                | Method            | Status         |
+| ------------- | ----------------------------------- | ----------------- | -------------- |
+| Configuration | OpenAI connectivity                 | Smoke-test script | PASS           |
+| Intent        | Basic structured extraction         | Smoke-test script | PASS           |
+| Intent        | Complex multi-constraint extraction | Smoke-test script | PASS           |
+| Models        | Recipe model import                 | CLI               | PASS           |
+| Models        | Recipe schema                       | CLI               | PASS           |
+| Data          | Single recipe parsing               | CLI/module        | PASS after fix |
+| Data          | Complete 50K+ corpus                | CLI/module        | PASS           |
+| Data          | Processed corpus generation         | CLI/module        | PASS           |
+| Store         | Runtime recipe loading              | CLI               | PASS           |
+| Store         | Runtime caching                     | CLI               | PASS           |
+| Retrieval     | Ingredient candidates               | CLI               | PASS           |
+| Filtering     | Maximum time                        | CLI               | PASS           |
+| Filtering     | Excluded ingredient                 | CLI               | PASS           |
+| Filtering     | Required ingredient                 | CLI               | PASS           |
+| Ranking       | Ingredient relevance                | CLI               | PASS           |
+| Service       | Top-5 recommendation pipeline       | CLI               | PASS           |
+| Edge Case     | Missing/zero time                   | CLI               | PASS after fix |
+| API           | Basic recommendation                | Swagger           | PASS           |
+| API           | Time constraint                     | Swagger           | PASS           |
+| API           | Excluded ingredient                 | Swagger           | PASS           |
+| API           | Required ingredient                 | Swagger           | PASS           |
+| API           | Cuisine preference                  | Swagger           | PASS           |
+| API           | Nutrition preference                | Swagger           | PASS           |
+| API           | Multiple constraints                | Swagger           | PASS           |
+| API           | Clarification                       | Swagger           | PASS after fix |
+| API           | Minimal usable request              | Swagger           | PASS           |
+| API           | Restrictive/no-match request        | Swagger           | PASS           |
+| Regression    | Automated suite                     | Pytest            | 6/6 PASS       |
 
 ---
 
@@ -1754,23 +1754,667 @@ This establishes the testing philosophy that will be used throughout the rest of
 
 ---
 
+# Day 2 — PostgreSQL, pgvector, Embeddings, and Hybrid Retrieval
+
+The objective of Day 2 was to replace the initial in-memory JSON candidate search with a database-backed retrieval architecture capable of combining deterministic structured retrieval with semantic similarity search.
+
+The Day 2 runtime retrieval path became:
+
+```text
+ParsedIntent
+     ↓
+ ┌───────────────┬─────────────────┐
+ │               │                 │
+Structured       Semantic
+Retrieval        Retrieval
+ │               │
+PostgreSQL       pgvector
+ │               │
+ └───────┬───────┘
+         ↓
+ Merge + Deduplicate
+         ↓
+ Fetch Recipe Models
+         ↓
+ Hard-Constraint Filtering
+         ↓
+ Deterministic Ranking
+         ↓
+ Top-5 Recommendations
+```
+
+---
+
+# 1. PostgreSQL + pgvector Infrastructure
+
+## Purpose
+
+Verify that MealMuse can run PostgreSQL with pgvector locally through Docker and that the Python backend can communicate with the database.
+
+## Components Tested
+
+```text
+docker-compose.yml
+backend/app/database/connection.py
+backend/app/database/schema.sql
+backend/app/config/settings.py
+```
+
+## Validation
+
+The PostgreSQL container was started through Docker Compose and verified as healthy.
+
+The pgvector extension was enabled and inspected.
+
+Observed pgvector version:
+
+```text
+0.8.6
+```
+
+A direct vector test was also executed:
+
+```sql
+SELECT '[1,2,3]'::vector;
+```
+
+The operation completed successfully.
+
+The Python SQLAlchemy connection was independently verified with:
+
+```sql
+SELECT 1;
+```
+
+### Status
+
+**PASS**
+
+---
+
+# 2. Recipe Database Ingestion
+
+## Purpose
+
+Verify that the complete processed MealMuse recipe corpus can be persisted in PostgreSQL.
+
+## Component
+
+```text
+backend/app/database/ingest_recipes.py
+```
+
+## Initial Issues
+
+Two issues were exposed during ingestion.
+
+### HttpUrl Adaptation
+
+Psycopg could not directly adapt Pydantic's `HttpUrl` object.
+
+The source URL is now explicitly converted before insertion:
+
+```python
+str(recipe.source_url) if recipe.source_url else None
+```
+
+### SQL Parameter Typo
+
+An incorrect `prep_time_minutes` parameter name caused an ingestion failure and was corrected.
+
+Because ingestion ran inside a transaction, failed attempts were rolled back rather than leaving a partially ingested corpus.
+
+## Final Validation
+
+```text
+Loaded for ingestion: 50,514
+Rows stored:          50,514
+```
+
+### Status
+
+**PASS AFTER FIXES**
+
+---
+
+# 3. Semantic Search Text
+
+## Purpose
+
+Create a compact textual representation of each recipe for embedding-based retrieval.
+
+The final `search_text` combines:
+
+```text
+recipe name
+normalized ingredients
+categories
+cuisines
+cooking methods
+```
+
+Example:
+
+```text
+Pineapple Glaze for Ham | pineapple maraschino cherries brown sugar | dinner | american | microwave
+```
+
+Recipe descriptions were deliberately excluded because they may be missing or noisy and the retrieval representation should emphasize stable recipe attributes.
+
+## Validation
+
+All database recipes were checked for populated semantic search text.
+
+```text
+Recipes:                    50,514
+Recipes with search_text:   50,514
+```
+
+### Status
+
+**PASS**
+
+---
+
+# 4. OpenAI Embedding Generation
+
+## Purpose
+
+Generate vector representations of the complete recipe corpus for semantic retrieval.
+
+## Model
+
+```text
+text-embedding-3-small
+```
+
+## Vector Dimension
+
+```text
+1536
+```
+
+## Component
+
+```text
+backend/app/database/generate_embeddings.py
+```
+
+Before processing the complete corpus, embedding generation was tested on five recipes.
+
+Validation query confirmed:
+
+```text
+recipe_000001    1536
+recipe_000002    1536
+recipe_000003    1536
+recipe_000004    1536
+recipe_000005    1536
+```
+
+### Status
+
+**PASS**
+
+---
+
+# 5. Batched and Resumable Embedding Generation
+
+Embedding generation was performed in batches rather than issuing one API request per recipe.
+
+```text
+Batch size: 100
+```
+
+Successful batches were persisted incrementally.
+
+The generation query selected only unfinished rows:
+
+```sql
+WHERE embedding IS NULL
+```
+
+This made the operation resumable. If execution stopped, already persisted embeddings were not regenerated.
+
+---
+
+# 6. Issue Discovered — OpenAI Rate Limiting
+
+During full-corpus embedding generation, the OpenAI API returned HTTP `429` rate-limit responses after sustained requests.
+
+The initial implementation terminated when this occurred.
+
+## Resolution
+
+Retry handling with exponential backoff was added to the embedding-generation process.
+
+Conceptually:
+
+```text
+Embedding request
+      ↓
+   Success? ───── Yes → Persist batch
+      │
+      No
+      ↓
+Rate limited?
+      ↓
+Wait + exponential backoff
+      ↓
+Retry request
+```
+
+Combined with incremental database commits and `WHERE embedding IS NULL`, the embedding job could recover without restarting from the beginning.
+
+## Final Validation
+
+```text
+Total recipes:       50,514
+Embedded recipes:    50,514
+```
+
+### Status
+
+**PASS AFTER FIX**
+
+---
+
+# 7. Semantic Retrieval with pgvector
+
+## Purpose
+
+Verify that a natural-language query can retrieve semantically relevant recipes using pgvector cosine distance.
+
+## Component
+
+```text
+backend/app/repositories/recipe_repository.py
+```
+
+## Test Query
+
+```text
+quick high protein chicken dinner
+```
+
+## Example Results
+
+```text
+Quick Meal-Prep Chicken
+Last Minute Chicken Dinner
+Quick and Easy Chicken
+Emergency Chicken
+Easy Shredded Chicken
+```
+
+Semantic retrieval uses pgvector cosine distance:
+
+```sql
+embedding <=> query_embedding
+```
+
+Lower distance represents greater semantic similarity.
+
+The returned recipes were qualitatively consistent with the test query.
+
+### Status
+
+**PASS**
+
+---
+
+# 8. Structured Retrieval
+
+## Purpose
+
+Retrieve candidates using deterministic structured fields from `ParsedIntent`.
+
+Structured retrieval currently uses relevant database fields including:
+
+```text
+normalized ingredients
+cuisines
+categories / meal type
+equipment
+maximum time
+```
+
+## Initial Performance Issue
+
+The first ingredient query used:
+
+```text
+unnest(normalized_ingredients)
++
+ILIKE '%ingredient%'
+```
+
+against the recipe corpus.
+
+The query took more than 40 seconds and was unsuitable for runtime retrieval.
+
+## Resolution
+
+Ingredient retrieval was changed to PostgreSQL array overlap operations:
+
+```sql
+normalized_ingredients && CAST(:ingredients AS text[])
+```
+
+GIN indexes were added for structured array fields:
+
+```text
+normalized_ingredients
+cuisines
+categories
+equipment
+```
+
+After the change, the same structured retrieval path completed effectively immediately during manual testing.
+
+### Status
+
+**PASS AFTER OPTIMIZATION**
+
+---
+
+# 9. Hybrid Retrieval
+
+## Purpose
+
+Combine structured candidate generation with semantic candidate generation without allowing either retrieval method to become the final recommendation decision.
+
+## Component
+
+```text
+backend/app/retrieval/recipe_retriever.py
+```
+
+The retrieval flow is:
+
+```text
+Structured candidates
+        +
+Semantic candidates
+        ↓
+Merge by recipe_id
+        ↓
+Deduplicate
+```
+
+Retrieval-source metadata distinguishes:
+
+```text
+structured
+semantic
+both
+```
+
+## Manual Validation
+
+For a representative chicken/rice dinner request:
+
+```text
+Structured candidate limit: 50
+Semantic candidate limit:   50
+Merged candidates:          98
+```
+
+The result demonstrated that candidates from both retrieval paths were successfully combined and duplicate recipe IDs removed.
+
+### Status
+
+**PASS**
+
+---
+
+# 10. PostgreSQL Recipe Repository Integration
+
+The existing Day 1 filtering and ranking services operate on validated `Recipe` objects.
+
+Hybrid retrieval initially returns database candidate rows.
+
+A repository conversion boundary was therefore added:
+
+```text
+Hybrid Retrieval
+      ↓
+candidate recipe IDs
+      ↓
+Recipe Repository
+      ↓
+PostgreSQL rows
+      ↓
+Recipe objects
+      ↓
+Existing filtering + ranking
+```
+
+This allowed the Day 1 deterministic filtering and ranking logic to remain unchanged while replacing the runtime candidate source.
+
+### Status
+
+**PASS**
+
+---
+
+# 11. Automated Retrieval Tests
+
+A new test module was added:
+
+```text
+backend/tests/test_recipe_retrieval.py
+```
+
+## Structured Retrieval Time Test
+
+```text
+test_structured_search_respects_time_limit
+```
+
+Validates that structured retrieval does not return candidates exceeding an explicit maximum-time constraint.
+
+### Status
+
+**PASS**
+
+## Hybrid Retrieval Deduplication Test
+
+```text
+test_hybrid_retrieval_deduplicates_candidates
+```
+
+Validates that merging structured and semantic retrieval does not produce duplicate recipe IDs.
+
+Because this path requires PostgreSQL and a live OpenAI embedding request, it is marked as an integration test.
+
+### Status
+
+**PASS**
+
+---
+
+# 12. Automated Test Separation
+
+Tests requiring external services are marked:
+
+```text
+integration
+```
+
+Normal regression tests can therefore run without requiring a live OpenAI call:
+
+```bash
+python -m pytest -v -m "not integration"
+```
+
+Observed result:
+
+```text
+7 passed
+1 deselected
+```
+
+Integration tests are executed separately:
+
+```bash
+python -m pytest -v -m integration
+```
+
+Observed result:
+
+```text
+1 passed
+7 deselected
+```
+
+### Status
+
+**PASS**
+
+---
+
+# 13. End-to-End Hybrid `/chat` Validation
+
+The complete API was manually tested after replacing the Day 1 runtime candidate search with hybrid PostgreSQL + pgvector retrieval.
+
+## Input
+
+```json
+{
+  "message": "I have chicken and rice. I want a spicy dinner under 30 minutes."
+}
+```
+
+## Extracted Intent
+
+MealMuse correctly identified:
+
+```text
+ingredients_available: chicken, rice
+meal_type: dinner
+taste_preferences: spicy
+max_prep_minutes: 30
+```
+
+## Top Recommendations Included
+
+```text
+Baja-Style Chicken Bowl
+Spicy Thai Basil Chicken (Pad Krapow Gai)
+Thai Stir-Fried Noodles (Pad See Ew)
+Bourbon Chicken
+Spicy Chicken Noodles
+```
+
+All returned recommendations respected the explicit 30-minute maximum.
+
+The response preserved the existing structured `MealRecommendation` API contract.
+
+### Status
+
+**PASS**
+
+---
+
+# 14. Day 2 Issues Found Through Testing
+
+| Issue                                                    | How It Was Discovered          | Resolution                                                           | Status |
+| -------------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------- | ------ |
+| Psycopg could not adapt Pydantic `HttpUrl`               | Database ingestion             | Convert URL to string before insertion                               | PASS   |
+| SQL ingestion parameter typo                             | Database ingestion             | Corrected parameter name                                             | PASS   |
+| OpenAI credit exhaustion                                 | Initial embedding test         | Added API billing credit                                             | PASS   |
+| OpenAI embedding rate limit                              | Full embedding generation      | Added retry/backoff and retained resumability                        | PASS   |
+| Structured ingredient query exceeded 40 seconds          | Runtime structured-search test | Replaced wildcard `unnest` search with array operators + GIN indexes | PASS   |
+| Hybrid retrieval could return same recipe from two paths | Hybrid retrieval test          | Merge/deduplicate by `recipe_id`                                     | PASS   |
+
+---
+
+# 15. Day 2 Test Matrix
+
+| Layer       | Test                              | Method                    | Status         |
+| ----------- | --------------------------------- | ------------------------- | -------------- |
+| Database    | PostgreSQL container health       | Docker/CLI                | PASS           |
+| Database    | pgvector extension                | SQL                       | PASS           |
+| Database    | SQLAlchemy connectivity           | CLI                       | PASS           |
+| Data        | Complete recipe ingestion         | SQL count                 | PASS — 50,514  |
+| Retrieval   | `search_text` population          | SQL count                 | PASS — 50,514  |
+| Embeddings  | Five-recipe smoke test            | OpenAI + SQL              | PASS           |
+| Embeddings  | Vector dimensions                 | SQL                       | PASS — 1536    |
+| Embeddings  | Complete corpus                   | SQL count                 | PASS — 50,514  |
+| Reliability | Embedding resumability            | Runtime                   | PASS           |
+| Reliability | Rate-limit retry/backoff          | Runtime                   | PASS after fix |
+| Retrieval   | Semantic similarity               | Manual CLI                | PASS           |
+| Retrieval   | Structured search                 | Manual CLI                | PASS           |
+| Performance | Structured retrieval optimization | Manual runtime comparison | PASS           |
+| Retrieval   | Hybrid merge/deduplication        | Pytest integration        | PASS           |
+| Filtering   | Structured maximum-time behavior  | Pytest                    | PASS           |
+| Regression  | Existing deterministic tests      | Pytest                    | PASS           |
+| API         | Hybrid `/chat` pipeline           | Swagger                   | PASS           |
+
+---
+
+# Day 2 Testing Outcome
+
+By the end of Day 2, MealMuse's runtime recommendation path had moved from the initial JSON/in-memory candidate search to database-backed hybrid retrieval:
+
+```text
+Natural-Language Request
+          ↓
+     FastAPI /chat
+          ↓
+ OpenAI Intent Extraction
+          ↓
+      ParsedIntent
+          ↓
+ ┌────────┴────────┐
+ ↓                 ↓
+Structured       Semantic
+Retrieval        Retrieval
+ ↓                 ↓
+PostgreSQL       pgvector
+ └────────┬────────┘
+          ↓
+ Merge + Deduplicate
+          ↓
+   Recipe Repository
+          ↓
+ Hard-Constraint Filtering
+          ↓
+ Deterministic Ranking
+          ↓
+       Top 5
+          ↓
+Structured API Response
+```
+
+Day 2 testing also exposed two production-relevant behaviors that changed the implementation:
+
+```text
+External API rate limiting
+          ↓
+Retry/backoff + resumable processing
+```
+
+and:
+
+```text
+40+ second structured query
+          ↓
+Query strategy reconsidered
+          ↓
+PostgreSQL array operations + GIN indexes
+          ↓
+Fast structured retrieval
+```
+
+The Day 1 deterministic recommendation behavior remained intact after the retrieval architecture was replaced.
+
+**Overall Day 2 testing status: PASS**
+
 # Planned Testing — Upcoming Phases
 
 As MealMuse evolves toward the production architecture, this document will be extended rather than replaced.
-
-## PostgreSQL / pgvector
-
-Planned validation includes:
-
-- recipe database ingestion
-- row-count and data-integrity checks
-- SQL filtering
-- database indexes
-- embedding generation
-- vector similarity retrieval
-- hybrid retrieval
-- retrieval latency
-- retrieval relevance evaluation
 
 ## Agent Orchestration
 
@@ -1886,5 +2530,16 @@ Manual API scenarios              PASS
 Known Day 1 edge cases            PASS after fixes
 Automated regression suite        PASS (6 / 6)
 
-Overall Day 1 testing status:     PASS
+Day 2 — Database + Hybrid Retrieval
+
+PostgreSQL recipe ingestion       PASS (50,514 / 50,514)
+Recipe embeddings                 PASS (50,514 / 50,514)
+Semantic retrieval                PASS
+Structured retrieval              PASS
+Hybrid retrieval                  PASS
+End-to-end hybrid API             PASS
+Normal automated suite            PASS (7 / 7)
+Integration suite                 PASS (1 / 1)
+
+Overall testing status:           PASS
 ```
