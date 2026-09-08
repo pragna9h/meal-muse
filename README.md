@@ -1,61 +1,82 @@
 # MealMuse
 
-MealMuse is an ingredient-aware meal recommendation system that helps users decide what to cook based on the ingredients they already have, along with their preferences and constraints.
+MealMuse is an AI-powered meal discovery application that helps users either decide what to cook from available ingredients, constraints, and preferences, or directly find a recipe when they already know the dish they want.
 
-The project is being built as an end-to-end **Agentic AI system**, combining LLM-based intent understanding with deterministic retrieval, filtering, and ranking.
+The project is being built as an end-to-end Agentic AI system, combining LLM-based
+request understanding with deterministic retrieval, filtering, ranking, and
+specialized recipe-search workflows. Agentic orchestration and tool calling are
+introduced in the next development phase.
 
 ## Current Features
 
-- Natural-language meal requests
+- Natural-language meal and recipe requests
 - Structured intent extraction using an LLM
-- Ingredient-aware recipe retrieval
+- Two supported V1 workflows:
+  - Ingredient-aware meal recommendations
+  - Direct recipe search for a known dish
+- Intent-aware clarification handling for underspecified requests
 - PostgreSQL-backed runtime recipe store
 - Semantic recipe retrieval using OpenAI embeddings + pgvector
-- Structured retrieval using indexed recipe metadata
-- Hybrid structured + semantic candidate retrieval
-- Hard-constraint filtering
+- Structured recipe retrieval using indexed PostgreSQL recipe metadata
+- Hybrid structured + semantic candidate retrieval for meal recommendations
+- Direct recipe search using recipe-name matching + semantic retrieval
+- Candidate merging and deduplication across retrieval strategies
+- Full recipe hydration from PostgreSQL
+- Hard-constraint filtering for:
   - Required ingredients
   - Excluded ingredients
   - Time constraints
 - Deterministic recipe ranking
 - Top-5 meal recommendations
+- Full recipe results for direct recipe search
 - Nutrition and recipe metadata
-- Clarification handling for underspecified requests
 - FastAPI backend with structured request/response models
 - Batched and resumable embedding generation with rate-limit handling
 - Unit, API, and integration tests
 - Recipe processing pipeline for 50K+ recipes
 
-## Current Recommendation Pipeline
+## Current Request Pipeline
+
+### Meal Recommendation
 
 ```text
-Natural-Language Request
-          ↓
-     FastAPI /chat
-          ↓
- OpenAI Intent Extraction
-          ↓
-      ParsedIntent
-          ↓
- Deterministic Clarification
-          ↓
- ┌────────┴────────┐
- ↓                 ↓
-Structured       Semantic
-Retrieval        Retrieval
- ↓                 ↓
-PostgreSQL       pgvector
- └────────┬────────┘
-          ↓
- Merge + Deduplicate
-          ↓
- Hard-Constraint Filtering
-          ↓
- Deterministic Ranking
-          ↓
-       Top 5
-          ↓
- Structured API Response
+Natural-language request
+        ↓
+Structured intent extraction
+        ↓
+Recommendation intent
+        ↓
+Hybrid retrieval
+   ├── Structured PostgreSQL retrieval
+   └── Semantic pgvector retrieval
+        ↓
+Candidate merge + deduplication
+        ↓
+Full Recipe hydration
+        ↓
+Hard-constraint filtering
+        ↓
+Deterministic ranking
+        ↓
+Top 5 recommendations
+```
+
+```text
+Natural-language request
+        ↓
+Structured intent extraction
+        ↓
+Recipe-search intent + recipe query
+        ↓
+Recipe-name search
+        +
+Semantic pgvector search
+        ↓
+Merge + deduplicate
+        ↓
+Full Recipe hydration
+        ↓
+Recipe results
 ```
 
 ## Development Journey
@@ -441,7 +462,7 @@ Integration tests:        PASS
 
 ### Completed
 
-**Phase I — Initial Recommendation Pipeline**
+**Phase I — Recommendation+Search Pipeline**
 
 - [x] FastAPI backend
 - [x] Structured LLM intent extraction
@@ -453,7 +474,7 @@ Integration tests:        PASS
 - [x] Clarification handling
 - [x] Initial automated tests
 
-**Phase II — Production Retrieval Layer**
+**Phase II — Production Retrieval Layer - PostgreSQL, pgvector, hybrid retrieval**
 
 - [x] Dockerized PostgreSQL + pgvector
 - [x] 50,514-recipe PostgreSQL ingestion
@@ -473,7 +494,7 @@ Integration tests:        PASS
 
 ### Next
 
-**Phase III — Agentic Orchestration**
+**Phase III — Agentic orchestration and tool calling**
 
 ```text
 User Request

@@ -2412,6 +2412,237 @@ The Day 1 deterministic recommendation behavior remained intact after the retrie
 
 **Overall Day 2 testing status: PASS**
 
+## Multi-Intent Compatibility Validation
+
+MealMuse V1 was expanded from recommendation-only behavior to support both
+meal recommendation and direct recipe search before introducing the Day 3
+orchestration layer.
+
+### Intent Routing Validation
+
+The request-understanding layer was extended with two explicit intents:
+
+```text
+meal_recommendation
+recipe_search
+```
+
+Direct recipe requests also populate a dedicated `recipe_query` field.
+
+Representative requests were manually validated through the `/chat` API.
+
+#### Meal Recommendation
+
+```json
+{
+  "message": "I have chicken and rice. What can I make?"
+}
+```
+
+Validated:
+
+```text
+intent: meal_recommendation
+recipe_query: null
+recommendations: populated
+```
+
+**Status: PASS**
+
+#### Direct Recipe Search
+
+```json
+{
+  "message": "How do I make chicken tikka masala?"
+}
+```
+
+Validated:
+
+```text
+intent: recipe_search
+recipe_query: chicken tikka masala
+recipes: populated
+recommendations: []
+```
+
+**Status: PASS**
+
+#### Clarification
+
+An underspecified recommendation request was also retested.
+
+Validated:
+
+```text
+needs_clarification: true
+recommendations: []
+recipes: []
+```
+
+This confirmed that adding direct recipe search did not break the existing
+deterministic clarification policy.
+
+**Status: PASS**
+
+### Direct Recipe Search Retrieval
+
+Direct recipe search was tested independently before being connected to the
+API.
+
+The search strategy combines:
+
+```text
+Recipe-name search
+        +
+Semantic pgvector search
+        ↓
+Merge + Deduplicate
+        ↓
+Full Recipe Hydration
+```
+
+Representative queries included:
+
+```text
+chicken tikka masala
+lasagna
+pad thai
+```
+
+The searches returned relevant recipes for each query.
+
+For `chicken tikka masala`, the leading result was retrieved by both the
+recipe-name and semantic retrieval paths:
+
+```text
+Chicken Tikka Masala
+retrieval_source: both
+```
+
+This confirmed that the two retrieval strategies can independently discover
+the same recipe and that the results are correctly merged and deduplicated.
+
+**Status: PASS**
+
+### Full Recipe Hydration
+
+Search-result recipe IDs were passed through the recipe repository and
+converted into complete `Recipe` objects.
+
+Validation confirmed that hydrated results contained populated fields such as:
+
+```text
+recipe_id
+name
+ingredients
+instructions
+nutrition
+source_url
+```
+
+Representative results included:
+
+```text
+Chicken Tikka Masala
+Curry Stand Chicken Tikka Masala Sauce
+Curry Stand Chicken Tikka Masala Sauce II
+```
+
+**Status: PASS**
+
+### Automated Multi-Intent Regression Tests
+
+New automated tests were added for intent routing and API behavior.
+
+```text
+backend/tests/test_intent_routing.py
+backend/tests/test_chat_api.py
+```
+
+The tests validate:
+
+- meal-recommendation intent classification
+- recipe-search intent classification
+- `/chat` recommendation routing
+- `/chat` recipe-search routing
+- deterministic clarification behavior
+
+The `/chat` tests mock the LLM and downstream services so the normal
+regression suite does not require live OpenAI or PostgreSQL calls.
+
+### Normal Regression Suite
+
+Command:
+
+```bash
+python -m pytest -v -m "not integration"
+```
+
+Observed result:
+
+```text
+collected 13 items / 1 deselected / 12 selected
+
+12 passed
+1 deselected
+```
+
+**Status: PASS**
+
+### Integration Suite
+
+Command:
+
+```bash
+python -m pytest -v -m integration
+```
+
+Observed result:
+
+```text
+collected 13 items / 12 deselected / 1 selected
+
+1 passed
+12 deselected
+```
+
+The integration test continues to validate hybrid retrieval using PostgreSQL,
+pgvector, and a live OpenAI embedding request.
+
+**Status: PASS**
+
+### Compatibility Outcome
+
+The V1 scope expansion was completed without breaking the existing Day 1 or
+Day 2 behavior.
+
+The current request flow now supports:
+
+```text
+Natural-Language Request
+        ↓
+Intent Extraction
+        ↓
+ParsedIntent
+        ↓
+Deterministic Clarification Policy
+        ↓
+Intent Routing
+   ┌───────────────┴───────────────┐
+   ↓                               ↓
+Meal Recommendation          Direct Recipe Search
+   ↓                               ↓
+Existing Hybrid Pipeline     Name + Semantic Search
+   ↓                               ↓
+Top-5 Recommendations        Recipe Results
+```
+
+This establishes the two application workflows that the Day 3 orchestration
+layer will coordinate.
+
+**Overall multi-intent compatibility status: PASS**
+
 # Planned Testing — Upcoming Phases
 
 As MealMuse evolves toward the production architecture, this document will be extended rather than replaced.
@@ -2528,7 +2759,6 @@ Incremental component tests       PASS
 Recipe corpus processing          PASS (50,514 / 50,514)
 Manual API scenarios              PASS
 Known Day 1 edge cases            PASS after fixes
-Automated regression suite        PASS (6 / 6)
 
 Day 2 — Database + Hybrid Retrieval
 
@@ -2538,7 +2768,20 @@ Semantic retrieval                PASS
 Structured retrieval              PASS
 Hybrid retrieval                  PASS
 End-to-end hybrid API             PASS
-Normal automated suite            PASS (7 / 7)
+
+V1 Multi-Intent Compatibility
+
+Meal recommendation routing       PASS
+Direct recipe-search routing      PASS
+Recipe-name retrieval             PASS
+Semantic recipe retrieval         PASS
+Search merge + deduplication      PASS
+Full recipe hydration             PASS
+Clarification regression          PASS
+
+Current Automated Suites
+
+Normal regression suite           PASS (12 / 12)
 Integration suite                 PASS (1 / 1)
 
 Overall testing status:           PASS

@@ -8,41 +8,45 @@ The architecture will evolve as MealMuse moves from the recommendation foundatio
 
 # 1. Current System Architecture
 
-At the end of Day 2, MealMuse supports an end-to-end ingredient-aware recommendation pipeline backed by PostgreSQL and hybrid retrieval.
+MealMuse currently supports two end-to-end natural-language workflows backed by
+PostgreSQL and pgvector: ingredient-aware meal recommendation and direct recipe search.
 
 ```text
 User
- ↓
+  ↓
 FastAPI /chat
- ↓
+  ↓
 OpenAI Intent Extraction
- ↓
+  ↓
 ParsedIntent
- ↓
+  ↓
 Deterministic Clarification Policy
- ↓
-┌──────────────────────┬──────────────────────┐
-│                      │                      │
-Structured Retrieval   Semantic Retrieval
-│                      │
-PostgreSQL              OpenAI Embedding
-│                      │
-│                      ↓
-│                   pgvector
-│                      │
-└───────────┬──────────┘
-            ↓
-      Merge + Deduplicate
-            ↓
-       Recipe Repository
-            ↓
-    Hard-Constraint Filtering
-            ↓
-    Deterministic Ranking
-            ↓
-       Top 5 Recommendations
-            ↓
-     Structured API Response
+  ↓
+Intent Routing
+  ├───────────────────────────────┐
+  ↓                               ↓
+Meal Recommendation          Direct Recipe Search
+  ↓                               ↓
+Structured Retrieval        Recipe Name Search
+  +                               +
+Semantic Retrieval          Semantic Retrieval
+  ↓                               ↓
+PostgreSQL + pgvector       PostgreSQL + pgvector
+  ↓                               ↓
+Merge + Deduplicate         Merge + Deduplicate
+  ↓                               ↓
+Recipe Repository           Recipe Repository
+  ↓                               ↓
+Full Recipe Hydration       Full Recipe Hydration
+  ↓                               ↓
+Hard-Constraint Filtering   Recipe Results
+  ↓
+Deterministic Ranking
+  ↓
+Top 5 Recommendations
+  └───────────────┬───────────────┘
+                  ↓
+        Structured API Response
 ```
 
 ---
@@ -120,6 +124,54 @@ max_prep_minutes = 30
 ```
 
 This structured representation becomes the contract between natural-language understanding and the deterministic recommendation system.
+
+
+## Supported V1 Workflows
+
+MealMuse V1 supports two primary natural-language workflows.
+
+### Meal Recommendation
+
+The user wants help deciding what to cook based on available ingredients,
+constraints, or preferences.
+
+Examples:
+
+- "I have chicken and rice. What can I make?"
+- "I want something spicy and high protein under 30 minutes."
+
+Recommendation requests use the existing hybrid recommendation pipeline:
+
+1. Structured intent extraction
+2. Structured and semantic candidate retrieval
+3. Candidate merging and deduplication
+4. Full recipe hydration
+5. Deterministic hard-constraint filtering
+6. Deterministic ranking
+7. Top recommendation selection
+
+### Direct Recipe Search
+
+The user already knows the dish they want and asks MealMuse to find it.
+
+Examples:
+
+- "How do I make chicken tikka masala?"
+- "Give me a lasagna recipe."
+- "Show me how to make pad thai."
+
+Direct recipe search uses a separate retrieval strategy because the
+retrieval objective differs from meal recommendation.
+
+The search combines:
+
+1. Deterministic recipe-name matching in PostgreSQL
+2. Semantic retrieval using pgvector
+3. Candidate merging and deduplication
+4. Full Recipe hydration from PostgreSQL
+
+Direct recipe search does not use the recommendation filtering and ranking
+pipeline.
 
 ---
 
@@ -551,7 +603,50 @@ Each component is intended to solve a specific MealMuse requirement rather than 
 
 ---
 
-# 18. Architecture Evolution
+# 18. Engineering-Decision
+
+## AI and Deterministic Application Boundaries
+
+MealMuse uses AI where natural-language interpretation or reasoning is
+useful and deterministic application logic where the required action is
+already known.
+
+For example, a natural-language request such as "How do I make chicken
+tikka masala?" requires request understanding to distinguish recipe search
+from recommendation.
+
+In contrast, when a user clicks a recipe card, the application already
+knows the recipe ID. Recipe-detail retrieval therefore uses a direct API
+and database lookup rather than routing the operation through an LLM.
+
+Hard constraints, recipe facts, filtering, calculations, and ranking also
+remain deterministic. The LLM does not invent recipe facts or override
+hard constraints.
+
+This separation reduces unnecessary latency, API cost, failure surface,
+and architectural complexity.
+
+
+## Deferred Conversational Capabilities
+
+Persistent multi-turn recommendation state is intentionally outside the
+MealMuse V1 scope.
+
+Examples of deferred interactions include:
+
+- "Make the previous recommendations spicier."
+- "Now make them under 20 minutes."
+- "Tell me more about the second one."
+
+Supporting these interactions would require conversation state,
+constraint merging, reference resolution, and state persistence.
+
+These capabilities are candidates for a future MealMuse V2 rather than
+being introduced without a current product requirement.
+
+---
+
+# 19. Architecture Evolution
 
 ## Day 1
 
@@ -591,7 +686,7 @@ This allowed the data/retrieval architecture to evolve without rewriting already
 
 ---
 
-# 19. Next Architectural Phase
+# 20. Next Architectural Phase
 
 The next phase introduces agentic orchestration and explicit tool boundaries.
 
