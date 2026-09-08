@@ -9,6 +9,7 @@ from backend.app.models.recipe import Ingredient, Nutrition, Recipe
 
 DEFAULT_SEMANTIC_LIMIT = 50
 DEFAULT_STRUCTURED_LIMIT = 50
+DEFAULT_RECIPE_NAME_LIMIT = 20
 
 
 def vector_to_string(vector: list[float]) -> str:
@@ -89,6 +90,53 @@ def get_recipes_by_ids(recipe_ids: list[str]) -> list[Recipe]:
         for recipe_id in recipe_ids
         if recipe_id in recipes_by_id
     ]
+    
+def search_recipes_by_name(recipe_query: str, limit: int = DEFAULT_RECIPE_NAME_LIMIT) -> list[dict]:
+    sql = text(
+        """
+        SELECT
+            recipe_id,
+            name,
+            normalized_ingredients,
+            prep_time_minutes,
+            cook_time_minutes,
+            total_time_minutes,
+            calories,
+            protein_g,
+            cuisines,
+            categories,
+            equipment,
+            rating_value,
+            rating_count,
+            source_url
+        FROM recipes
+        WHERE name ILIKE :contains_pattern
+        ORDER BY
+            CASE
+                WHEN LOWER(name) = LOWER(:exact_name) THEN 0
+                WHEN LOWER(name) LIKE LOWER(:prefix_pattern) THEN 1
+                ELSE 2
+            END,
+            rating_value DESC NULLS LAST,
+            rating_count DESC NULLS LAST
+        LIMIT :limit
+        """
+    )
+
+    parameters = {
+        "contains_pattern": f"%{recipe_query}%",
+        "exact_name": recipe_query,
+        "prefix_pattern": f"{recipe_query}%",
+        "limit": limit,
+    }
+
+    with engine.connect() as connection:
+        rows = connection.execute(
+            sql,
+            parameters,
+        ).mappings().all()
+
+    return [dict(row) for row in rows]
 
 
 def semantic_search( query: str, limit: int = DEFAULT_SEMANTIC_LIMIT, ) -> list[dict]:

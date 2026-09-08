@@ -1,4 +1,6 @@
 from typing import List, Optional
+from typing import List, Literal, Optional
+from backend.app.models.recipe import Recipe
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -12,6 +14,12 @@ class ChatRequest(BaseModel):
 
 
 class ParsedIntent(BaseModel):
+    intent: Literal[
+        "meal_recommendation",
+        "recipe_search",
+    ] = "meal_recommendation"
+
+    recipe_query: Optional[str] = None
     
     ingredients_available: List[str] = []
     ingredients_required: List[str] = []
@@ -70,4 +78,5 @@ class MealRecommendation(BaseModel):
 
 class ChatResponse(BaseModel):
     parsed_intent: ParsedIntent
-    recommendations: List[MealRecommendation]
+    recommendations: List[MealRecommendation] = []
+    recipes: List[Recipe] = []
