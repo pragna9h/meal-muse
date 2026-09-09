@@ -16,37 +16,40 @@ User
   ↓
 FastAPI /chat
   ↓
-OpenAI Intent Extraction
+Chat Orchestrator
   ↓
-ParsedIntent
+OpenAI Tool Calling
   ↓
-Deterministic Clarification Policy
-  ↓
-Intent Routing
+Tool Selection
   ├───────────────────────────────┐
+  ↓                               ↓
+recommend_meals               search_recipe
+  ↓                               ↓
+Tool Arguments                  Tool Arguments
+  └───────────────┬───────────────┘
+                  ↓
+             ParsedIntent
+                  ↓
+      Deterministic Clarification
+                  ↓
+  ┌───────────────┴───────────────┐
   ↓                               ↓
 Meal Recommendation          Direct Recipe Search
   ↓                               ↓
-Structured Retrieval        Recipe Name Search
-  +                               +
-Semantic Retrieval          Semantic Retrieval
+Hybrid Retrieval             Recipe Name + Semantic Search
   ↓                               ↓
-PostgreSQL + pgvector       PostgreSQL + pgvector
+PostgreSQL + pgvector        PostgreSQL + pgvector
   ↓                               ↓
-Merge + Deduplicate         Merge + Deduplicate
+Full Recipe Hydration        Full Recipe Hydration
   ↓                               ↓
-Recipe Repository           Recipe Repository
-  ↓                               ↓
-Full Recipe Hydration       Full Recipe Hydration
-  ↓                               ↓
-Hard-Constraint Filtering   Recipe Results
+Hard Filtering               Recipe Results
   ↓
 Deterministic Ranking
   ↓
 Top 5 Recommendations
   └───────────────┬───────────────┘
                   ↓
-        Structured API Response
+             ChatResponse
 ```
 
 ---
@@ -71,7 +74,11 @@ Examples include:
 - equipment
 - clarification signals
 
-The LLM produces a structured `ParsedIntent` rather than directly selecting recipes.
+The LLM selects one of MealMuse's application tools and extracts structured tool arguments from the user's natural-language request.
+
+The backend validates those arguments with Pydantic and converts them into `ParsedIntent`.
+
+The LLM therefore handles semantic interpretation and capability selection, while deterministic backend code retains control over application behavior.
 
 ## Databases Provide Recipe Facts
 
@@ -112,7 +119,14 @@ The public recommendation endpoint accepts natural language:
 }
 ```
 
-The intent extraction layer converts this into `ParsedIntent`.
+The orchestration layer sends the request to the OpenAI model with MealMuse's available tool definitions.
+
+The model selects exactly one application capability:
+
+- `recommend_meals`
+- `search_recipe`
+
+The returned tool arguments are validated with Pydantic and converted into `ParsedIntent`.
 
 Example:
 
@@ -124,7 +138,6 @@ max_prep_minutes = 30
 ```
 
 This structured representation becomes the contract between natural-language understanding and the deterministic recommendation system.
-
 
 ## Supported V1 Workflows
 
@@ -142,7 +155,7 @@ Examples:
 
 Recommendation requests use the existing hybrid recommendation pipeline:
 
-1. Structured intent extraction
+1. Tool selection and structured argument extraction
 2. Structured and semantic candidate retrieval
 3. Candidate merging and deduplication
 4. Full recipe hydration
@@ -160,8 +173,7 @@ Examples:
 - "Give me a lasagna recipe."
 - "Show me how to make pad thai."
 
-Direct recipe search uses a separate retrieval strategy because the
-retrieval objective differs from meal recommendation.
+Direct recipe search uses a separate retrieval strategy because the retrieval objective differs from meal recommendation.
 
 The search combines:
 
@@ -170,8 +182,7 @@ The search combines:
 3. Candidate merging and deduplication
 4. Full Recipe hydration from PostgreSQL
 
-Direct recipe search does not use the recommendation filtering and ranking
-pipeline.
+Direct recipe search does not use the recommendation filtering and ranking pipeline.
 
 ---
 
@@ -550,12 +561,18 @@ This provides repeatable behavior and makes recommendation decisions easier to i
 
 # 16. Current Recommendation Flow
 
-The complete Day 2 runtime path is:
+The current recommendation runtime path is:
 
 ```text
 Natural Language
       ↓
-OpenAI Intent Extraction
+Chat Orchestrator
+      ↓
+OpenAI Tool Calling
+      ↓
+recommend_meals
+      ↓
+Validated Tool Arguments
       ↓
 ParsedIntent
       ↓
@@ -568,36 +585,40 @@ PostgreSQL              pgvector
    ↘                    ↙
       Merge + Deduplicate
               ↓
-       Recipe Repository
+        Recipe Repository
               ↓
-        Recipe Objects
+         Recipe Objects
               ↓
-       Hard Filtering
+        Hard Filtering
               ↓
-   Deterministic Ranking
+    Deterministic Ranking
               ↓
            Top 5
               ↓
-     MealRecommendation
+      MealRecommendation
               ↓
-        FastAPI Response
+         ChatResponse
 ```
+
+Direct recipe search follows the same orchestration boundary but executes search_recipe, which uses recipe-name and semantic retrieval rather than the recommendation filtering and ranking pipeline.
 
 ---
 
 # 17. Current Technology Responsibilities
 
-| Technology / Component | Responsibility |
-|---|---|
-| FastAPI | HTTP API layer |
-| OpenAI language model | Natural-language intent extraction |
-| OpenAI `text-embedding-3-small` | Semantic query and recipe embeddings |
-| Pydantic | API/domain validation and structured contracts |
-| PostgreSQL | Runtime recipe store and structured querying |
-| pgvector | Vector storage and semantic similarity search |
-| SQLAlchemy | Python/PostgreSQL connection and query execution |
-| Docker | Local PostgreSQL/pgvector environment |
-| Pytest | Regression and integration testing |
+| Technology / Component          | Responsibility                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| FastAPI                         | HTTP API layer                                                                              |
+| OpenAI language model           | Natural-language understanding and tool selection                                           |
+| OpenAI `text-embedding-3-small` | Semantic query and recipe embeddings                                                        |
+| Chat Orchestrator               | Coordinates tool selection, validation, clarification, execution, and response construction |
+| OpenAI tool calling             | Exposes explicit meal-recommendation and recipe-search capabilities                         |
+| Pydantic                        | API/domain validation and structured contracts                                              |
+| PostgreSQL                      | Runtime recipe store and structured querying                                                |
+| pgvector                        | Vector storage and semantic similarity search                                               |
+| SQLAlchemy                      | Python/PostgreSQL connection and query execution                                            |
+| Docker                          | Local PostgreSQL/pgvector environment                                                       |
+| Pytest                          | Regression and integration testing                                                          |
 
 Each component is intended to solve a specific MealMuse requirement rather than being included solely for technology breadth.
 
@@ -626,6 +647,34 @@ hard constraints.
 This separation reduces unnecessary latency, API cost, failure surface,
 and architectural complexity.
 
+## Agentic Orchestration and Tool Boundaries
+
+MealMuse exposes two AI-callable application tools:
+
+- `recommend_meals`
+- `search_recipe`
+
+Tool selection replaces the earlier standalone intent-classification step. This avoids performing one LLM call to classify the request and another to decide which application capability should execute.
+
+The orchestrator is responsible for:
+
+1. request understanding and tool selection,
+2. tool-argument validation,
+3. `ParsedIntent` construction,
+4. deterministic clarification policy,
+5. application-tool execution,
+6. result inspection,
+7. `ChatResponse` construction.
+
+The orchestrator does not perform SQL, vector search, recipe hydration, hard filtering, ranking, or nutrition calculations. Those responsibilities remain in their existing deterministic application layers.
+
+MealMuse currently distinguishes the following product outcomes:
+
+- `SUCCESS`
+- `CLARIFICATION_REQUIRED`
+- `NO_RESULTS`
+
+Tool-selection failures are surfaced as HTTP 500 responses, while tool-execution or dependency failures are surfaced as HTTP 503 responses. Infrastructure failures therefore do not masquerade as successful HTTP 200 product responses.
 
 ## Deferred Conversational Capabilities
 
@@ -684,39 +733,47 @@ The existing filtering and ranking layers were intentionally preserved.
 
 This allowed the data/retrieval architecture to evolve without rewriting already validated recommendation behavior.
 
+## Day 3
+
+The request-understanding layer evolved from standalone structured intent
+extraction into explicit tool-based orchestration.
+
+```text
+Natural Language
+      ↓
+OpenAI Tool Calling
+      ↓
+recommend_meals / search_recipe
+      ↓
+Validated Tool Arguments
+      ↓
+ParsedIntent
+      ↓
+Deterministic Application Policies
+      ↓
+Existing Service and Retrieval Layers
+```
+
 ---
 
 # 20. Next Architectural Phase
 
-The next phase introduces agentic orchestration and explicit tool boundaries.
+The next phase introduces the user-facing React and TypeScript application.
 
-Planned direction:
+The frontend will support:
 
-```text
-User
- ↓
-Agent Orchestrator
- ↓
-Reason about required action
- ↓
-Tool Calls
- ↓
-Retrieval / Recipe Operations
- ↓
-Deterministic Policies
- ↓
-Response
-```
+- natural-language meal recommendation requests,
+- direct recipe searches,
+- recommendation and recipe result cards,
+- clarification and error states,
+- deterministic recipe-detail retrieval when a user selects a card.
 
-The orchestrator will not replace deterministic filtering or database retrieval.
+Recipe-card selection will not invoke the LLM because the application already
+knows the selected `recipe_id`.
 
-Instead, it will coordinate capabilities while preserving the existing separation between:
+This preserves MealMuse's architectural principle:
 
 ```text
-LLM reasoning
-tool execution
-recipe facts
-deterministic application policy
+Use AI where interpretation is required.
+Use deterministic code where the required action is already known.
 ```
-
-The architecture will be updated as those responsibilities are implemented and validated.

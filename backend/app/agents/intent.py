@@ -1,7 +1,11 @@
+# Legacy Day 1 intent-extraction implementation.
+# Retained temporarily for smoke-test/reference purposes;
+# the active runtime now uses OpenAI tool calling
+# through the orchestration layer.
+
 from backend.app.config.settings import get_settings
 from backend.app.models.chat import ParsedIntent
 from backend.app.services.llm import client
-
 
 settings = get_settings()
 

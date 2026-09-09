@@ -1,517 +1,410 @@
 # MealMuse
 
-MealMuse is an AI-powered meal discovery application that helps users either decide what to cook from available ingredients, constraints, and preferences, or directly find a recipe when they already know the dish they want.
+MealMuse is an AI-powered meal discovery application that helps users either:
 
-The project is being built as an end-to-end Agentic AI system, combining LLM-based
-request understanding with deterministic retrieval, filtering, ranking, and
-specialized recipe-search workflows. Agentic orchestration and tool calling are
-introduced in the next development phase.
+- decide what to cook from ingredients, constraints, and preferences, or
+- directly find recipes when they already know the dish they want.
 
-## Current Features
+The project is being built as a production-grade Agentic AI system combining
+LLM-based request understanding and tool calling with deterministic retrieval,
+filtering, ranking, and application policies.
 
-- Natural-language meal and recipe requests
-- Structured intent extraction using an LLM
-- Two supported V1 workflows:
-  - Ingredient-aware meal recommendations
-  - Direct recipe search for a known dish
-- Intent-aware clarification handling for underspecified requests
-- PostgreSQL-backed runtime recipe store
-- Semantic recipe retrieval using OpenAI embeddings + pgvector
-- Structured recipe retrieval using indexed PostgreSQL recipe metadata
-- Hybrid structured + semantic candidate retrieval for meal recommendations
-- Direct recipe search using recipe-name matching + semantic retrieval
-- Candidate merging and deduplication across retrieval strategies
-- Full recipe hydration from PostgreSQL
-- Hard-constraint filtering for:
-  - Required ingredients
-  - Excluded ingredients
-  - Time constraints
-- Deterministic recipe ranking
-- Top-5 meal recommendations
-- Full recipe results for direct recipe search
-- Nutrition and recipe metadata
-- FastAPI backend with structured request/response models
-- Batched and resumable embedding generation with rate-limit handling
-- Unit, API, and integration tests
-- Recipe processing pipeline for 50K+ recipes
-
-## Current Request Pipeline
+## Core Workflows
 
 ### Meal Recommendation
 
-```text
-Natural-language request
-        ↓
-Structured intent extraction
-        ↓
-Recommendation intent
-        ↓
-Hybrid retrieval
-   ├── Structured PostgreSQL retrieval
-   └── Semantic pgvector retrieval
-        ↓
-Candidate merge + deduplication
-        ↓
-Full Recipe hydration
-        ↓
-Hard-constraint filtering
-        ↓
-Deterministic ranking
-        ↓
-Top 5 recommendations
-```
+Example:
 
 ```text
-Natural-language request
-        ↓
-Structured intent extraction
-        ↓
-Recipe-search intent + recipe query
-        ↓
-Recipe-name search
+"I have chicken and rice. I want something spicy and Indian."
+```
+
+MealMuse interprets the request, retrieves relevant recipes using structured
+PostgreSQL search and semantic pgvector search, applies hard constraints, and
+deterministically ranks the remaining candidates.
+
+### Direct Recipe Search
+
+Example:
+
+```text
+"How do I make chicken tikka masala?"
+```
+
+MealMuse routes the request to a dedicated recipe-search workflow that combines
+recipe-name matching with semantic retrieval and returns complete recipe data.
+
+---
+
+## Architecture
+
+```text
+User
+ ↓
+FastAPI /chat
+ ↓
+Chat Orchestrator
+ ↓
+OpenAI Tool Calling
+ ↓
+Tool Selection
+ ├───────────────────────────────┐
+ ↓                               ↓
+recommend_meals               search_recipe
+ ↓                               ↓
+Tool Arguments                Tool Arguments
+ └───────────────┬───────────────┘
+                 ↓
+            ParsedIntent
+                 ↓
+     Deterministic Clarification
+                 ↓
+ ┌───────────────┴───────────────┐
+ ↓                               ↓
+Meal Recommendation          Direct Recipe Search
+ ↓                               ↓
+Hybrid Retrieval             Name + Semantic Search
+ ↓                               ↓
+PostgreSQL + pgvector        PostgreSQL + pgvector
+ ↓                               ↓
+Full Recipe Hydration        Full Recipe Hydration
+ ↓                               ↓
+Hard Filtering               Recipe Results
+ ↓
+Deterministic Ranking
+ ↓
+Top 5 Recommendations
+ └───────────────┬───────────────┘
+                 ↓
+            ChatResponse
+```
+
+A central design principle is:
+
+> **Use AI where interpretation is required. Use deterministic code where
+> behavior must be predictable.**
+
+The LLM determines which application capability is appropriate and extracts
+structured arguments. The backend remains responsible for validation,
+clarification policy, retrieval, hard constraints, ranking, and database
+operations.
+
+For detailed design decisions, see [`docs/architecture.md`](docs/architecture.md).
+
+---
+
+## Agentic Orchestration
+
+MealMuse currently exposes two AI-callable application tools:
+
+```text
+recommend_meals
+search_recipe
+```
+
+The chat orchestrator coordinates:
+
+1. request understanding and tool selection
+2. tool-argument validation
+3. `ParsedIntent` construction
+4. deterministic clarification
+5. application-tool execution
+6. result handling
+7. `ChatResponse` construction
+
+The orchestrator intentionally does **not** perform SQL, vector retrieval,
+recipe hydration, filtering, ranking, or nutrition calculations.
+
+Those responsibilities remain in deterministic application layers.
+
+---
+
+## Retrieval Architecture
+
+### Meal Recommendations
+
+Recommendation retrieval combines two candidate sources:
+
+```text
+Structured PostgreSQL Retrieval
+              +
+Semantic pgvector Retrieval
+              ↓
+      Merge + Deduplicate
+              ↓
+       Recipe Hydration
+              ↓
+      Hard-Constraint Filter
+              ↓
+    Deterministic Ranking
+              ↓
+             Top 5
+```
+
+Structured retrieval handles explicit constraints and metadata, while semantic
+retrieval improves discovery for natural-language preferences.
+
+### Direct Recipe Search
+
+```text
+Recipe-Name Search
         +
-Semantic pgvector search
+Semantic pgvector Search
         ↓
-Merge + deduplicate
+Merge + Deduplicate
         ↓
-Full Recipe hydration
+Full Recipe Hydration
         ↓
-Recipe results
+Recipe Results
 ```
 
-## Development Journey
+Direct recipe search intentionally bypasses recommendation filtering and
+ranking because the user already knows what dish they want.
 
-### Phase I — Building the First End-to-End Vertical Slice
+---
 
-The goal for Phase I was not to build the complete production architecture immediately. Instead, the focus was to establish a working vertical slice that could take a natural-language request and return real, ranked meal recommendations.
+## Recipe Data
 
-This gave the project a functional baseline before introducing PostgreSQL, vector search, orchestration, caching, observability, and cloud infrastructure.
-
-#### 1. Defining the Product Boundary
-
-MealMuse initially had the potential to become a broad food assistant covering recipe search, meal planning, grocery assistance, nutrition, and recommendations.
-
-For V1, the scope was deliberately narrowed to one core problem:
-
-> **"I have these ingredients. What should I cook?"**
-
-MealMuse therefore became an **ingredient-aware meal recommendation advisor** rather than a generic food chatbot.
-
-The primary input remains natural language, while the data model also supports constraints and preferences such as:
-
-- available ingredients
-- required ingredients
-- excluded ingredients
-- meal type
-- dietary preferences and allergies
-- cuisine preferences
-- nutrition goals
-- maximum preparation time
-- servings
-- taste preferences
-- available equipment
-- budget and skill level
-- substitution preference
-
-A key modeling decision was separating:
+MealMuse uses a processed corpus of:
 
 ```text
-ingredients_available
-ingredients_required
-ingredients_excluded
+50,514 recipes
 ```
 
-rather than treating every ingredient mentioned by the user identically.
-
-#### 2. Establishing the Backend
-
-The backend was created using **Python 3.12 and FastAPI**.
-
-Initial API functionality included:
-
-```text
-GET  /health
-POST /chat
-GET  /docs
-```
-
-Pydantic models were introduced to create explicit contracts between natural-language understanding, recommendation logic, and the API response.
-
-The `/chat` endpoint became the entry point for the recommendation pipeline.
-
-#### 3. Adding Structured LLM Intent Extraction
-
-The OpenAI API was integrated behind a dedicated LLM service rather than calling the model directly throughout the application.
-
-The intent extraction component converts requests such as:
-
-```text
-"I have chicken, spinach and rice.
-Give me a high-protein dinner under 30 minutes."
-```
-
-into structured data representing ingredients, constraints, and preferences.
-
-An important architectural principle emerged here:
-
-> **Use the LLM for semantic understanding, but use deterministic application code for rules that must behave predictably.**
-
-For example, ingredient normalization is enforced by Pydantic validators rather than depending on the model to always return consistently formatted strings.
-
-#### 4. Building the Recipe Data Pipeline
-
-The initial recipe dataset contained **50,514 recipes** with useful information including:
+The data pipeline normalizes and validates:
 
 - ingredients
 - instructions
 - preparation and cooking times
 - servings
-- cuisine/category information
-- cooking methods
+- cuisine and category metadata
+- cooking methods and equipment
 - nutrition
 - ratings
 - source URLs
 
-The raw dataset was not suitable for direct application use, so a processing layer was built to transform each source row into a validated `Recipe` model.
+All 50,514 recipes are stored in PostgreSQL and have 1536-dimensional OpenAI
+embeddings stored in pgvector.
 
-This required parsing nested ingredient structures, nutrition fields, instructions, metadata, and inconsistent or missing values.
+Embedding generation is batched, resumable, and includes retry/backoff handling
+for API rate limits.
 
-After resolving parsing issues discovered during implementation:
+---
 
-```text
-Successfully loaded: 50514
-Failed to load: 0
-```
+## Deterministic Application Policies
 
-The processed corpus is generated locally as `recipes.json`.
+MealMuse deliberately keeps several decisions outside the LLM.
 
-Raw and generated datasets are intentionally excluded from Git because the processed dataset can be reproduced from the ingestion pipeline.
+### Hard Constraints
 
-#### 5. Separating Recipe Loading from Runtime Access
+Explicit requirements are enforced before ranking, including:
 
-Rather than repeatedly parsing the entire dataset for every recommendation request, a runtime recipe store was introduced.
+- required ingredients
+- excluded ingredients
+- maximum preparation time
 
-The processed recipes are loaded once and cached for reuse:
+Unknown recipe times cannot satisfy explicit maximum-time constraints.
 
-```text
-Processed Recipe Corpus
-        ↓
-Recipe Store
-        ↓
-Recommendation Pipeline
-```
+### Clarification
 
-This provided a simple runtime architecture for the first vertical slice while leaving the storage layer replaceable.
+Meal recommendation requests without enough ingredient information return a
+clarification request instead of arbitrary recommendations.
 
-The long-term architecture will replace this local store with PostgreSQL and pgvector.
-
-#### 6. Candidate Retrieval
-
-The next layer introduced candidate retrieval.
-
-Instead of attempting to rank all 50K+ recipes for every request, MealMuse first retrieves a smaller set of recipes that are plausibly relevant to the user's available ingredients.
-
-This established an important separation:
+Example:
 
 ```text
-Retrieval
-    ↓
-"What recipes might be relevant?"
+User: "I want something healthy."
 
-Ranking
-    ↓
-"Which of those recipes are best?"
+MealMuse:
+"What ingredients do you have on hand?"
 ```
 
-This distinction will become more important when semantic/vector retrieval is introduced.
+### Ranking
 
-#### 7. Hard-Constraint Filtering
+After filtering, valid recommendation candidates are ranked using deterministic
+signals such as:
 
-Candidate recipes then pass through deterministic filtering.
-
-Hard constraints such as:
-
-```text
-excluded ingredients
-required ingredients
-maximum time
-```
-
-are enforced before ranking.
-
-This prevents ranking from accidentally promoting a recipe that violates an explicit user requirement.
-
-For example:
-
-```text
-User: "No peanuts"
-        ↓
-Candidate retrieval
-        ↓
-Remove every recipe containing peanuts
-        ↓
-Rank only valid recipes
-```
-
-This also established a broader design principle for MealMuse:
-
-> **Hard constraints are enforced deterministically; preferences influence ranking.**
-
-#### 8. Discovering and Fixing the Recipe-Time Problem
-
-During end-to-end testing, some highly ranked recipes appeared with:
-
-```text
-total_time_minutes = 0
-```
-
-Treating `0` as a genuine cooking time caused recipes with incomplete source data to incorrectly satisfy strict time constraints.
-
-The time model was therefore changed.
-
-MealMuse now derives an effective recipe time using available timing information rather than blindly trusting `total_time_minutes`.
-
-Conceptually:
-
-```text
-valid total time
-      ↓
-use it
-
-otherwise
-      ↓
-prep time + cook time
-
-otherwise
-      ↓
-time unknown
-```
-
-Unknown-time recipes are not allowed to satisfy explicit maximum-time constraints.
-
-This was an example of the implementation changing after observing real dataset behavior rather than designing solely from assumptions.
-
-#### 9. Deterministic Ranking
-
-After filtering, remaining candidates are scored and ranked.
-
-The first ranking implementation considers signals such as:
-
-- available ingredient coverage
+- ingredient coverage
 - missing ingredients
 - meal-type compatibility
 - cuisine preference
-- recipe metadata
-- ratings
 - time suitability
+- recipe metadata and ratings
 
-The ranking layer also records why a recipe matched, allowing the API to return information such as:
-
-```text
-matched ingredients
-missing ingredients
-score
-time
-nutrition
-recommendation reason
-source URL
-```
-
-The current algorithm is intentionally deterministic and interpretable.
-
-Future iterations will combine this with semantic retrieval and richer ranking signals.
-
-#### 10. Building the Recommendation Service
-
-Retrieval, filtering, and ranking were then composed into a single recommendation service:
-
-```text
-ParsedIntent
-     ↓
-Candidate Retrieval
-     ↓
-Hard-Constraint Filtering
-     ↓
-Ranking
-     ↓
-Top 5
-     ↓
-MealRecommendation
-```
-
-This replaced the placeholder response originally used while constructing the API.
-
-At this point, `/chat` became a complete working recommendation endpoint.
-
-#### 11. Fixing Underspecified Requests
-
-End-to-end testing uncovered another important issue.
-
-A request such as:
-
-```text
-"I want something light."
-```
-
-was initially interpreted as:
-
-```text
-taste_preferences = ["light"]
-needs_clarification = false
-```
-
-Because no ingredients were provided, the retrieval/ranking pipeline still returned recipes — including unrelated results such as desserts.
-
-Rather than trying to compensate inside the ranking algorithm, a deterministic clarification policy was introduced.
-
-MealMuse now recognizes when there is insufficient information for a meaningful ingredient-aware recommendation and returns a clarification request instead of arbitrary recipes.
-
-This reinforced the separation between:
-
-```text
-LLM
-→ understands what the user said
-
-Application policy
-→ decides whether the system has enough information to proceed
-```
-
-#### 12. Testing the Complete Pipeline
-
-For the complete Phase I validation history — including command-line smoke tests, API test scenarios, failures discovered during development, fixes, retests, and the automated regression suite — see [`docs/testing.md`](docs/testing.md).
-
-#### Phase I Outcome
-
-By the end of Phase I, MealMuse had progressed from an empty backend structure to a working recommendation system:
-
-```text
-Natural-Language Request
-          ↓
-       FastAPI
-          ↓
-Structured LLM Intent Extraction
-          ↓
-   Clarification Policy
-          ↓
- Candidate Recipe Retrieval
-          ↓
- Hard-Constraint Filtering
-          ↓
- Deterministic Ranking
-          ↓
-   Top 5 Recommendations
-          ↓
- Structured API Response
-```
-
-The first milestone was committed only after the full vertical slice was working and both manual and automated tests passed.
-
-The architecture is intentionally evolutionary: the local recipe store and deterministic retrieval provide a working baseline that can now be measured and progressively replaced with production-oriented components.
+This keeps recommendation behavior interpretable and testable.
 
 ---
-
-#### Phase II Outcome
-
-By the end of Phase II:
-
-```
-Recipes in PostgreSQL:   50,514
-Recipes embedded:        50,514
-Embedding dimensions:    1536
-Structured retrieval:    PASS
-Semantic retrieval:      PASS
-Hybrid retrieval:        PASS
-End-to-end /chat:         PASS
-Regression tests:         PASS
-Integration tests:        PASS
-```
-
----
-
 
 ## Tech Stack
 
-### Current
+### Backend & AI
 
 - Python 3.12
 - FastAPI
 - Pydantic
-- OpenAI API
+- OpenAI Responses API
+- OpenAI tool calling
+- OpenAI embeddings
+
+### Data & Retrieval
+
 - PostgreSQL
 - pgvector
 - SQLAlchemy
 - Psycopg
+- PostgreSQL GIN indexes
+- hybrid structured + semantic retrieval
+
+### Infrastructure & Testing
+
 - Docker
 - Pytest
 
 ### Planned
 
 - React + TypeScript
-- Redis - if justified by runtime caching needs
-- Agent orchestration
-- Dockerized application services
-- Kubernetes
-- GCP
 - CI/CD
+- GCP
+- Kubernetes
 - OpenTelemetry
 - Prometheus + Grafana
+- Redis, if runtime caching requirements justify it
+
+---
+
+## Testing
+
+MealMuse currently includes unit/regression, integration, and manual
+end-to-end API validation.
+
+```text
+Regression suite       26 / 26 PASS
+Integration suite       1 / 1  PASS
+```
+
+Current coverage includes:
+
+- recipe loading
+- hard-constraint filtering
+- deterministic ranking
+- structured and semantic retrieval
+- hybrid retrieval and deduplication
+- multi-intent behavior
+- tool selection and argument validation
+- chat orchestration
+- clarification
+- no-result handling
+- tool-execution failure handling
+- API response behavior
+
+The current recommendation, direct recipe-search, and clarification workflows
+have also been validated end-to-end through FastAPI Swagger.
+
+For details, see [`docs/testing.md`](docs/testing.md).
+
+---
 
 ## Project Status
 
-🚧 **Active development**
+🚧 **Active Development**
 
-### Completed
-
-**Phase I — Recommendation+Search Pipeline**
+### Phase I — Recommendation Foundation
 
 - [x] FastAPI backend
-- [x] Structured LLM intent extraction
-- [x] 50K+ recipe processing pipeline
-- [x] Initial candidate retrieval
+- [x] Recipe processing pipeline
+- [x] 50,514-recipe corpus
 - [x] Hard-constraint filtering
 - [x] Deterministic ranking
-- [x] Top-5 recommendations
-- [x] Clarification handling
-- [x] Initial automated tests
+- [x] Top-5 meal recommendations
+- [x] Clarification policy
 
-**Phase II — Production Retrieval Layer - PostgreSQL, pgvector, hybrid retrieval**
+### Phase II — PostgreSQL + Hybrid Retrieval
 
 - [x] Dockerized PostgreSQL + pgvector
-- [x] 50,514-recipe PostgreSQL ingestion
-- [x] Semantic search text generation
-- [x] OpenAI recipe embeddings
-- [x] 50,514 vectors stored in pgvector
-- [x] Batched/resumable embedding generation
-- [x] Rate-limit retry/backoff handling
+- [x] 50,514 recipes stored in PostgreSQL
+- [x] 50,514 recipe embeddings
 - [x] Structured PostgreSQL retrieval
-- [x] GIN indexes for structured retrieval
 - [x] pgvector semantic retrieval
+- [x] GIN indexes
 - [x] Hybrid candidate retrieval
 - [x] Retrieval deduplication
-- [x] Existing hard filtering + ranking integration
-- [x] End-to-end hybrid `/chat` pipeline
-- [x] Retrieval integration tests
+- [x] Direct recipe search
+- [x] Full recipe hydration
 
-### Next
+### Phase III — Agentic Orchestration
 
-**Phase III — Agentic orchestration and tool calling**
+- [x] OpenAI tool definitions
+- [x] Tool selection
+- [x] Pydantic tool-argument validation
+- [x] Chat orchestrator
+- [x] Recommendation tool
+- [x] Recipe-search tool
+- [x] Deterministic clarification
+- [x] Explicit result states
+- [x] Orchestration failure handling
+- [x] Unit and end-to-end validation
 
-```text
-User Request
-     ↓
-Agent Orchestrator
-     ↓
-Tool Selection / Tool Calling
-     ↓
-Retrieval + Recipe Operations
-     ↓
-Deterministic Policies
-     ↓
-Recommendation Response
+### Next — Frontend
+
+- [ ] React + TypeScript application
+- [ ] Natural-language chat interface
+- [ ] Recommendation cards
+- [ ] Direct recipe-search results
+- [ ] Recipe-detail view
+- [ ] Clarification and error states
+- [ ] Frontend/backend integration
+
+### Production Roadmap
+
+- [ ] Dockerize application services
+- [ ] CI/CD
+- [ ] structured logging and analytics
+- [ ] rate limiting and production error handling
+- [ ] GCP deployment
+- [ ] Kubernetes
+- [ ] OpenTelemetry
+- [ ] Prometheus + Grafana
+- [ ] load and failure testing
+- [ ] production validation
+
+---
+
+## Running the Backend
+
+Start PostgreSQL:
+
+```bash
+docker compose up -d
 ```
 
---- 
+Start the API:
+
+```bash
+python -m uvicorn backend.app.main:app --reload
+```
+
+Open Swagger:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Run the regression suite:
+
+```bash
+python -m pytest -v -m "not integration"
+```
+
+Run integration tests:
+
+```bash
+python -m pytest -v -m integration
+```
+
+---
 
 ## Goal
 
-Build MealMuse into a **production-grade Agentic AI system** while exploring the engineering required to take an AI application from an initial working vertical slice to a reliable, observable, tested, scalable, and deployed product.
+Build MealMuse into a **production-grade Agentic AI system** while exploring
+the engineering required to move an AI application from a working prototype
+to a reliable, observable, tested, deployed product used by real users.

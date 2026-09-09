@@ -1,8 +1,7 @@
-from typing import List, Optional
 from typing import List, Literal, Optional
-from backend.app.models.recipe import Recipe
-
 from pydantic import BaseModel, Field, field_validator
+from backend.app.models.recipe import Recipe
+from backend.app.models.orchestration import ResultState
 
 
 class ChatRequest(BaseModel):
@@ -77,6 +76,10 @@ class MealRecommendation(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    result_state: ResultState
+    message: Optional[str] = None
+
     parsed_intent: ParsedIntent
-    recommendations: List[MealRecommendation] = []
-    recipes: List[Recipe] = []
+
+    recommendations: list[MealRecommendation] = Field(default_factory=list)
+    recipes: list[Recipe] = Field(default_factory=list)
