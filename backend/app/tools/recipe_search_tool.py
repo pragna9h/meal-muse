@@ -14,7 +14,7 @@ def build_recipe_search_intent(
 
 def execute_recipe_search_tool(
     parsed_intent: ParsedIntent,
-    limit: int = 5,
+    limit: int = 3,
 ):
     return find_recipes(
         recipe_query=parsed_intent.recipe_query,

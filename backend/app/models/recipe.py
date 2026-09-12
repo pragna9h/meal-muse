@@ -58,6 +58,7 @@ class Recipe(BaseModel):
     rating_count: Optional[int] = None
 
     source_url: Optional[HttpUrl] = None
+    image_url: Optional[HttpUrl] = None
 
     @field_validator(
         "normalized_ingredients",

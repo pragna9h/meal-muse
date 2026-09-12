@@ -50,6 +50,7 @@ def row_to_recipe(row: dict) -> Recipe:
         rating_value=row.get("rating_value"),
         rating_count=row.get("rating_count"),
         source_url=row.get("source_url"),
+        image_url=row.get("image_url")
     )
     
 
@@ -68,7 +69,7 @@ def get_recipes_by_ids(recipe_ids: list[str]) -> list[Recipe]:
             calories, protein_g, carbs_g,
             fat_g, saturated_fat_g, fiber_g,
             sugar_g, sodium_mg, cholesterol_mg,
-            rating_value, rating_count, source_url
+            rating_value, rating_count, source_url, image_url
         FROM recipes
         WHERE recipe_id = ANY(CAST(:recipe_ids AS text[]))
         """

@@ -61,6 +61,7 @@ class MealRecommendation(BaseModel):
     name: str
 
     score: float
+    rating_value: Optional[float] = None
 
     total_time_minutes: Optional[int] = None
 

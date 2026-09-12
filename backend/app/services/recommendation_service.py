@@ -54,6 +54,7 @@ def ranked_recipe_to_recommendation(
         recipe_id=recipe.recipe_id,
         name=recipe.name,
         score=ranked_recipe.score,
+        rating_value=recipe.rating_value,
         total_time_minutes=effective_time,
         calories=recipe.nutrition.calories,
         protein_g=recipe.nutrition.protein_g,
