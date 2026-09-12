@@ -16,20 +16,19 @@ export default function ChatInput({
 
   useEffect(() => {
     if (!isLoading) {
-      setLoadingDots(".");
-      return;
+        return;
     }
 
     const interval = window.setInterval(() => {
-      setLoadingDots((current) => {
+        setLoadingDots((current) => {
         if (current === ".") return "..";
         if (current === "..") return "...";
         return ".";
-      });
+        });
     }, 400);
 
     return () => window.clearInterval(interval);
-  }, [isLoading]);
+    }, [isLoading]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,8 +36,9 @@ export default function ChatInput({
     const trimmedMessage = message.trim();
 
     if (!trimmedMessage || isLoading) {
-      return;
+    return;
     }
+    setLoadingDots(".");
 
     await onSubmit(trimmedMessage);
   }
