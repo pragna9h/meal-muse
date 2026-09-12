@@ -5,15 +5,16 @@ orchestration, retrieval, filtering, ranking, and database layers.
 
 Testing is split into:
 
-- unit/regression tests
-- integration tests
-- manual end-to-end API validation
+- backend unit and regression tests
+- backend integration tests
+- frontend static validation and production build validation
+- manual full-stack end-to-end validation
 
 ---
 
 # 1. Test Strategy
 
-## Unit and Regression Tests
+## Backend Unit and Regression Tests
 
 Deterministic application behavior is tested with Pytest without requiring
 live external services where possible.
@@ -22,7 +23,6 @@ Normal regression suite:
 
 ```bash
 python -m pytest -v -m "not integration"
-```
 
 Current result:
 
@@ -31,7 +31,7 @@ Current result:
 1 deselected
 ```
 
-## Integration Tests
+## Backend Integration Tests
 
 Tests that require PostgreSQL, pgvector, or live OpenAI calls are marked: `integration`
 
@@ -48,9 +48,58 @@ Current result:
 26 deselected
 ```
 
-## Manual End-to-End Tests
+## Complete Backend Suite
+```bash
+python -m pytest -v
+```
+Current Result:
+```text
+27 passed
+```
 
-The complete applicastion flow is manually validated through FastAPI Swagger:
+## Frontend Validation
+The React and TypeScript frontend is validated using ESLint:
+
+```bash
+cd frontend
+npm run lint
+```
+
+Current result:
+```text
+PASS
+No ESLint errors or warnings
+```
+The production frontend build is validated with:
+```bash
+npm run build
+```
+
+Current result:
+```text
+PASS
+Vite production build completed successfully
+```
+
+## Manual Full Stack Validation
+
+The complete application is manually validated with all runtime components running together:
+
+```text
+React + TypeScript
+        ↓
+FastAPI
+        ↓
+Chat Orchestrator
+        ↓
+Recommendation / Search Services
+        ↓
+PostgreSQL + pgvector
+```
+
+The frontend is exercised through the browser while the FastAPI backend and PostgreSQL/pgvector database are running locally.
+
+FastAPI Swagger remains available for direct API inspection at:
 
 ```text
 http://127.0.0.1:8000/docs
@@ -69,7 +118,15 @@ Validates:
 - direct recipe-search response
 - clarification response
 - no-results response
-- `ChatResponse` serialization through the orchestrator`
+- `ChatResponse` serialization through the orchestrator
+
+## Recipe Detail
+Recipe-detail retrieval validates the deterministic path used when a user selects a result card.
+
+```text
+Known recipe_id -> GET /recipes/{recipe_id} -> Recipe Repository -> PostgreSQL -> Full Recipe
+```
+This path intentionally bypasses the LLM and orchestration layer because the application already knows which recipe the user selected.
 
 ## Chat Orchestration
 
@@ -134,6 +191,8 @@ Validates:
 
 The hybrid retrieval test is marked as integration test as it requires PostgreSQL, pgvector, and a live query embedding.
 
+--- 
+
 # 3. Manual End-to-End Validation
 
 ## Meal Recommendation
@@ -197,6 +256,80 @@ recipes: []
 
 Status: PASS
 
+---
+
+# Full-Stack Browser Validation
+
+The completed React frontend was manually tested against the running FastAPI
+backend and PostgreSQL/pgvector database.
+
+### Meal Recommendation
+
+Validated:
+
+- natural-language request submission
+- loading state
+- Top 5 recommendation rendering
+- recommendation metadata rendering
+- result ordering
+- recipe-card selection
+- full recipe-detail retrieval
+
+Status: PASS
+
+### Direct Recipe Search
+
+Validated:
+
+- natural-language recipe-search request
+- Top 3 recipe result rendering
+- recipe rating display
+- ingredient preview rendering
+- recipe-card selection
+- full recipe-detail retrieval
+- source-link availability
+
+Status: PASS
+
+### Clarification
+
+Validated:
+
+- underspecified recommendation request
+- clarification message rendering
+- empty recommendation and recipe collections
+
+Status: PASS
+
+### No Results
+
+Validated:
+
+- valid request with no matching recipes
+- no-results state renders without frontend failure
+
+Status: PASS
+
+### Failure Handling
+
+Validated:
+
+- backend/network failure is surfaced as an error state
+- stale results are not presented as a successful response
+
+Status: PASS
+
+### Client Interaction
+
+Validated:
+
+- prompt clear control
+- new request clears previous recipe-detail state
+- loading indicator cycles while a request is active
+- result cards remain interactive after successful responses
+
+Status: PASS
+
 # 4. Important behaviors protected by tests
 
 MealMuse tests currently protect the following architectural guarantees:
@@ -211,6 +344,13 @@ MealMuse tests currently protect the following architectural guarantees:
 - invalid tool output becomes a controlled orchestration error
 - application no-results are distinct from infrastructure failures
 - orchestration failures do not silently return successful HTTP 200 responses
+- recipe-card selection uses deterministic recipe-detail retrieval
+- known recipe IDs do not trigger unnecessary LLM calls
+- frontend correctly distinguishes recommendation and recipe-search results
+- frontend handles clarification, no-results, loading, and failure states
+- new requests do not retain stale recipe-detail state
+- frontend passes static lint validation
+- frontend produces a valid production build
 
 # 5. Current Test Status
 
@@ -241,27 +381,45 @@ No-results handling               PASS
 Tool failure handling             PASS
 Manual Swagger validation         PASS
 
-Automated Suites
+Day 4 — React + TypeScript Frontend
 
-Regression suite                  PASS (26 / 26)
-Integration suite                 PASS (1 / 1)
+Frontend recommendation flow      PASS
+Frontend recipe-search flow       PASS
+Recipe-detail selection           PASS
+Clarification UI                  PASS
+No-results UI                     PASS
+Failure UI                        PASS
+Loading state                     PASS
+Prompt clearing                   PASS
+Frontend ESLint                   PASS
+Frontend production build         PASS
+Full-stack browser validation     PASS
+
+Final Day 4 Validation
+
+Backend test suite                PASS (27 / 27)
+Frontend lint                     PASS
+Frontend production build         PASS
+Full-stack smoke tests            PASS
 
 Overall status                    PASS
 ```
 
-# Planned Testing
+# 6. Planned Testing
 
-Future phases will add validation for:
+The production-hardening and deployment phases will add validation for:
 
-- React frontend behavior
-- frontend/backend integration
-- recipe-detail selection
-- structured logging
-- analytics events
-- rate limiting
-- CI/CD
-- Redis caching, if introduced
-- observability
-- load testing
+- structured application logging
+- dependency and infrastructure failure handling
+- request tracing and latency measurement
+- production configuration
+- health and readiness behavior
+- containerized application startup
+- frontend/backend integration in the containerized environment
+- GitHub Actions CI
 - production deployment
-- health/readiness behavior
+- observability
+- load and performance testing
+- production end-to-end validation
+
+Additional infrastructure such as caching will only introduce corresponding tests if that infrastructure is actually added to MealMuse.

@@ -1,13 +1,18 @@
 # MealMuse
 
-MealMuse is an AI-powered meal discovery application that helps users either:
+MealMuse is a full-stack AI-powered meal discovery application that helps users:
 
-- decide what to cook from ingredients, constraints, and preferences, or
+- decide what to cook from available ingredients, constraints, and preferences, or
 - directly find recipes when they already know the dish they want.
 
-The project is being built as a production-grade Agentic AI system combining
-LLM-based request understanding and tool calling with deterministic retrieval,
-filtering, ranking, and application policies.
+MealMuse combines a React + TypeScript frontend with a FastAPI backend, agentic
+tool-based orchestration, hybrid PostgreSQL + pgvector retrieval, and
+deterministic filtering and ranking.
+
+The project is being built as a production-grade Agentic AI system with a clear
+engineering boundary: AI handles natural-language interpretation and capability
+selection, while deterministic application code controls recipe facts,
+constraints, retrieval, ranking, and known actions.
 
 ## Core Workflows
 
@@ -41,7 +46,11 @@ recipe-name matching with semantic retrieval and returns complete recipe data.
 ```text
 User
  ↓
-FastAPI /chat
+React + TypeScript Frontend
+ ↓
+FastAPI
+ ↓
+POST /chat
  ↓
 Chat Orchestrator
  ↓
@@ -77,6 +86,8 @@ Top 5 Recommendations
  └───────────────┬───────────────┘
                  ↓
             ChatResponse
+                 ↓
+        Frontend Result Cards
 ```
 
 A central design principle is:
@@ -90,6 +101,28 @@ clarification policy, retrieval, hard constraints, ranking, and database
 operations.
 
 For detailed design decisions, see [`docs/architecture.md`](docs/architecture.md).
+
+## Frontend
+
+MealMuse includes a React + TypeScript interface for both supported V1 workflows.
+
+The frontend provides:
+
+- natural-language request input
+- Top 5 meal recommendation cards
+- Top 3 direct recipe-search results
+- recipe ratings and key metadata
+- ingredient previews
+- full recipe-detail selection
+- clarification responses
+- no-results handling
+- backend/network failure handling
+- animated loading state
+- prompt clearing and request-state reset
+
+The frontend remains a presentation and interaction layer. Recommendation logic, recipe retrieval, constraint enforcement, ranking, and recipe facts remain in the backend.
+
+Recipe-card selection uses the known `recipe_id` to retrieve complete recipe details directly rather than invoking the orchestration layer again.
 
 ---
 
@@ -237,6 +270,13 @@ This keeps recommendation behavior interpretable and testable.
 
 ## Tech Stack
 
+### Frontend
+
+- React 19
+- TypeScript
+- Vite
+- ESLint
+
 ### Backend & AI
 
 - Python 3.12
@@ -260,45 +300,53 @@ This keeps recommendation behavior interpretable and testable.
 - Docker
 - Pytest
 
-### Planned
+### Production Roadmap
 
-- React + TypeScript
-- CI/CD
-- GCP
-- Kubernetes
-- OpenTelemetry
-- Prometheus + Grafana
-- Redis, if runtime caching requirements justify it
+- GitHub Actions CI/CD
+- GCP deployment
+- structured logging and observability
+- production health/readiness checks
+- load and failure testing
+
+Additional infrastructure will only be introduced when it solves a concrete
+MealMuse production requirement.
 
 ---
 
 ## Testing
 
-MealMuse currently includes unit/regression, integration, and manual
-end-to-end API validation.
+MealMuse is validated across backend unit/regression tests, integration tests,
+frontend static validation, production builds, and manual full-stack testing.
+
+Current Day 4 validation:
 
 ```text
-Regression suite       26 / 26 PASS
-Integration suite       1 / 1  PASS
+Backend test suite             27 / 27 PASS
+Frontend ESLint                     PASS
+Frontend production build           PASS
+Full-stack browser validation        PASS
 ```
 
 Current coverage includes:
 
-- recipe loading
+- recipe loading and normalization
 - hard-constraint filtering
 - deterministic ranking
 - structured and semantic retrieval
 - hybrid retrieval and deduplication
 - multi-intent behavior
-- tool selection and argument validation
+- AI tool selection and argument validation
 - chat orchestration
 - clarification
-- no-result handling
+- no-results handling
 - tool-execution failure handling
-- API response behavior
+- recommendation UI flow
+- direct recipe-search UI flow
+- deterministic recipe-detail selection
+- loading and error states
+- frontend/backend integration
 
-The current recommendation, direct recipe-search, and clarification workflows
-have also been validated end-to-end through FastAPI Swagger.
+The recommendation, direct recipe-search, clarification, no-results, failure, and recipe-detail workflows have also been validated through the completed React frontend.
 
 For details, see [`docs/testing.md`](docs/testing.md).
 
@@ -344,67 +392,91 @@ For details, see [`docs/testing.md`](docs/testing.md).
 - [x] Orchestration failure handling
 - [x] Unit and end-to-end validation
 
-### Next — Frontend
+### Phase IV — React + TypeScript Frontend
 
-- [ ] React + TypeScript application
-- [ ] Natural-language chat interface
-- [ ] Recommendation cards
-- [ ] Direct recipe-search results
-- [ ] Recipe-detail view
-- [ ] Clarification and error states
-- [ ] Frontend/backend integration
+- [x] React + TypeScript application
+- [x] Natural-language request interface
+- [x] Recommendation cards
+- [x] Direct recipe-search results
+- [x] Recipe-detail view
+- [x] Deterministic recipe-detail API path
+- [x] Clarification state
+- [x] No-results state
+- [x] Failure state
+- [x] Loading state
+- [x] Frontend/backend integration
+- [x] Frontend lint validation
+- [x] Production frontend build
+- [x] Full-stack browser validation
 
-### Production Roadmap
+### Next — Production Hardening & Deployment
 
-- [ ] Dockerize application services
-- [ ] CI/CD
-- [ ] structured logging and analytics
-- [ ] rate limiting and production error handling
+- [ ] structured application logging
+- [ ] production error handling
+- [ ] request tracing and latency measurement
+- [ ] production environment configuration
+- [ ] production CORS configuration
+- [ ] application containerization
+- [ ] health and readiness checks
+- [ ] GitHub Actions CI
+- [ ] integration and failure testing
 - [ ] GCP deployment
-- [ ] Kubernetes
-- [ ] OpenTelemetry
-- [ ] Prometheus + Grafana
-- [ ] load and failure testing
+- [ ] production observability
+- [ ] load testing
 - [ ] production validation
 
 ---
 
-## Running the Backend
+## Running MealMuse
 
-Start PostgreSQL:
+### 1. Start PostgreSQL + pgvector
+
+From the project root:
 
 ```bash
 docker compose up -d
 ```
 
-Start the API:
+### 2. Start the FastAPI backend
+
+Activate the Python environment and run:
 
 ```bash
 python -m uvicorn backend.app.main:app --reload
 ```
 
-Open Swagger:
+The API is avilable at: `http://127.0.0.1:8000`
 
-```text
-http://127.0.0.1:8000/docs
-```
+Swagger documentation: `http://127.0.0.1:8000/docs`
 
-Run the regression suite:
+### 3. Start the React frontend
 
-```bash
-python -m pytest -v -m "not integration"
-```
-
-Run integration tests:
+In another terminal:
 
 ```bash
-python -m pytest -v -m integration
+cd frontend
+npm install
+npm run dev
+```
+
+Open the URL reported by Vite: `http://localhost:5173`
+
+### 4. Run backend tests
+
+```bash
+python -m pytest -v
+```
+
+### 5. Validate the frontend
+
+```bash
+cd frontend
+npm run lint
+npm run build
 ```
 
 ---
 
 ## Goal
 
-Build MealMuse into a **production-grade Agentic AI system** while exploring
-the engineering required to move an AI application from a working prototype
-to a reliable, observable, tested, deployed product used by real users.
+Build MealMuse into a **production-grade Agentic AI system** that demonstrates the engineering required to move an AI application from natural-language understanding through retrieval and deterministic application logic to a tested, observable, and publicly deployed full-stack product.

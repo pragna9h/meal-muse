@@ -8,13 +8,21 @@ The architecture will evolve as MealMuse moves from the recommendation foundatio
 
 # 1. Current System Architecture
 
-MealMuse currently supports two end-to-end natural-language workflows backed by
-PostgreSQL and pgvector: ingredient-aware meal recommendation and direct recipe search.
+MealMuse currently supports two end-to-end natural-language workflows through a React and TypeScript frontend backed by FastAPI, PostgreSQL, and pgvector:
+
+- ingredient-aware meal recommendation
+- direct recipe search
+
+The application also supports deterministic recipe-detail retrieval when a user selects a result card.
 
 ```text
 User
   ↓
-FastAPI /chat
+React + TypeScript Frontend
+  ↓
+POST /chat
+  ↓
+FastAPI API Layer
   ↓
 Chat Orchestrator
   ↓
@@ -25,12 +33,12 @@ Tool Selection
   ↓                               ↓
 recommend_meals               search_recipe
   ↓                               ↓
-Tool Arguments                  Tool Arguments
+Tool Arguments                 Tool Arguments
   └───────────────┬───────────────┘
                   ↓
              ParsedIntent
                   ↓
-      Deterministic Clarification
+       Deterministic Clarification
                   ↓
   ┌───────────────┴───────────────┐
   ↓                               ↓
@@ -50,6 +58,18 @@ Top 5 Recommendations
   └───────────────┬───────────────┘
                   ↓
              ChatResponse
+                  ↓
+       Frontend Result Rendering
+                  ↓
+     Recommendation / Recipe Cards
+                  ↓
+         User Selects Recipe
+                  ↓
+      GET /recipes/{recipe_id}
+                  ↓
+       Deterministic DB Lookup
+                  ↓
+          Recipe Detail View
 ```
 
 ---
@@ -608,6 +628,9 @@ Direct recipe search follows the same orchestration boundary but executes search
 
 | Technology / Component          | Responsibility                                                                              |
 | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| React                           | User-facing interface and UI state rendering                                                |
+| TypeScript                      | Typed frontend contracts and component development                                          |
+| Vite                            | Frontend development and production build tooling                                           |
 | FastAPI                         | HTTP API layer                                                                              |
 | OpenAI language model           | Natural-language understanding and tool selection                                           |
 | OpenAI `text-embedding-3-small` | Semantic query and recipe embeddings                                                        |
@@ -618,7 +641,8 @@ Direct recipe search follows the same orchestration boundary but executes search
 | pgvector                        | Vector storage and semantic similarity search                                               |
 | SQLAlchemy                      | Python/PostgreSQL connection and query execution                                            |
 | Docker                          | Local PostgreSQL/pgvector environment                                                       |
-| Pytest                          | Regression and integration testing                                                          |
+| Pytest                          | Backend regression and integration testing                                                  |
+| ESLint                          | Frontend code-quality validation                                                            |
 
 Each component is intended to solve a specific MealMuse requirement rather than being included solely for technology breadth.
 
@@ -754,26 +778,50 @@ Deterministic Application Policies
 Existing Service and Retrieval Layers
 ```
 
+## Day 4
+
+The application evolved from a backend-only system into a complete full-stack product.
+
+A React and TypeScript frontend was introduced as the presentation layer while preserving the existing backend architecture.
+
+```text
+User
+  ↓
+React + TypeScript
+  ↓
+FastAPI
+  ↓
+Chat Orchestrator
+  ↓
+Application Tools
+  ↓
+Recommendation / Search Services
+  ↓
+PostgreSQL + pgvector
+```
+
 ---
 
 # 20. Next Architectural Phase
 
-The next phase introduces the user-facing React and TypeScript application.
+The next architectural phase focuses on production hardening and deployment rather than expanding MealMuse's product feature set.
 
-The frontend will support:
+Planned work includes:
 
-- natural-language meal recommendation requests,
-- direct recipe searches,
-- recommendation and recipe result cards,
-- clarification and error states,
-- deterministic recipe-detail retrieval when a user selects a card.
+- structured application logging,
+- stronger dependency and infrastructure error handling,
+- request tracing and latency measurement,
+- production-safe environment configuration,
+- production CORS configuration,
+- backend and frontend containerization,
+- health and readiness checks,
+- GitHub Actions CI,
+- integration testing,
+- production deployment to GCP,
+- runtime observability,
+- load and failure testing,
+- production validation.
 
-Recipe-card selection will not invoke the LLM because the application already
-knows the selected `recipe_id`.
+The goal of the next phase is to evolve MealMuse from a complete local full-stack application into a reproducible, observable, and publicly deployable production system.
 
-This preserves MealMuse's architectural principle:
-
-```text
-Use AI where interpretation is required.
-Use deterministic code where the required action is already known.
-```
+Persistent conversational state, constraint merging across turns, and reference resolution remain deferred to a future V2 unless a concrete product requirement justifies them.
