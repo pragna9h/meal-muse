@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from backend.app.main import app
 from backend.app.models.chat import (
@@ -16,6 +17,53 @@ def test_health_endpoint():
     response = client.get("/health")
 
     assert response.status_code == 200
+    
+def test_readiness_endpoint_returns_ready(monkeypatch):
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            pass
+
+        def execute(self, statement):
+            return None
+
+    monkeypatch.setattr(
+        "backend.app.main.engine.connect",
+        lambda: MockConnection(),
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "database": "connected",
+    }
+
+
+def test_readiness_endpoint_returns_503_when_database_unavailable(
+    monkeypatch,
+):
+    def mock_connect():
+        raise OperationalError(
+            "SELECT 1",
+            {},
+            Exception("Database unavailable"),
+        )
+
+    monkeypatch.setattr(
+        "backend.app.main.engine.connect",
+        mock_connect,
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Service is not ready.",
+    }
 
 
 def test_chat_returns_meal_recommendation(monkeypatch):
@@ -51,6 +99,7 @@ def test_chat_returns_meal_recommendation(monkeypatch):
     )
 
     assert response.status_code == 200
+    assert "x-request-id" in response.headers
 
     data = response.json()
 
@@ -89,6 +138,7 @@ def test_chat_returns_recipe_search(monkeypatch):
     )
 
     assert response.status_code == 200
+    assert "x-request-id" in response.headers
 
     data = response.json()
 
@@ -131,6 +181,7 @@ def test_chat_returns_clarification(monkeypatch):
     )
 
     assert response.status_code == 200
+    assert "x-request-id" in response.headers
 
     data = response.json()
 
@@ -172,6 +223,7 @@ def test_chat_returns_no_results(monkeypatch):
     )
 
     assert response.status_code == 200
+    assert "x-request-id" in response.headers
 
     data = response.json()
 

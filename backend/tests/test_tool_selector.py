@@ -188,3 +188,18 @@ def test_select_tool_raises_error_when_multiple_tools_are_returned(
         select_tool(
             "I have chicken. Also show me chicken curry."
         )
+    
+def test_select_tool_raises_error_when_openai_request_fails(monkeypatch):
+    
+    def mock_create(**kwargs):
+        raise RuntimeError("OpenAI unavailable")
+
+    monkeypatch.setattr(
+        "backend.app.orchestration.tool_selector.client.responses.create",
+        mock_create,
+    )
+
+    with pytest.raises(
+        ToolSelectionError,
+        match="MealMuse request-understanding service failed.",
+    ): select_tool( "I have chicken and rice.")

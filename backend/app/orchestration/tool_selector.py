@@ -34,14 +34,20 @@ Do not treat words from the dish name as ingredients_available.
 
 
 def select_tool(message: str):
-    response = client.responses.create(
-        model=settings.openai_model,
-        instructions=TOOL_SELECTION_INSTRUCTIONS,
-        input=message,
-        tools=MEALMUSE_TOOLS,
-        tool_choice="required",
-        parallel_tool_calls=False,
-    )
+  
+    try:
+        response = client.responses.create(
+            model=settings.openai_model,
+            instructions=TOOL_SELECTION_INSTRUCTIONS,
+            input=message,
+            tools=MEALMUSE_TOOLS,
+            tool_choice="required",
+            parallel_tool_calls=False,
+        )
+    except Exception as exc:
+        raise ToolSelectionError(
+            "MealMuse request-understanding service failed."
+        ) from exc
 
     function_calls = [
         item

@@ -1,3 +1,4 @@
+import logging
 from backend.app.models.chat import ChatResponse
 from backend.app.models.orchestration import ResultState
 from backend.app.models.tool_arguments import (
@@ -18,8 +19,11 @@ from backend.app.tools.recipe_search_tool import (
 )
 from backend.app.orchestration.exceptions import ToolExecutionError
 
+logger = logging.getLogger(__name__)
+
 
 def orchestrate_chat(message: str) -> ChatResponse:
+    logger.info("Starting chat orchestration")
     tool_name, arguments = select_tool(message)
 
     if tool_name == "recommend_meals":
@@ -27,9 +31,7 @@ def orchestrate_chat(message: str) -> ChatResponse:
             arguments,
             MealRecommendationToolArguments,
         ):
-            raise TypeError(
-                "Invalid arguments for recommendation tool."
-            )
+            raise TypeError("Invalid arguments for recommendation tool.")
 
         parsed_intent = build_recommendation_intent(arguments)
 
@@ -38,20 +40,16 @@ def orchestrate_chat(message: str) -> ChatResponse:
             arguments,
             RecipeSearchToolArguments,
         ):
-            raise TypeError(
-                "Invalid arguments for recipe-search tool."
-            )
+            raise TypeError("Invalid arguments for recipe-search tool.")
 
         parsed_intent = build_recipe_search_intent(arguments)
 
     else:
-        raise ValueError(
-            f"Unsupported MealMuse tool: {tool_name}"
-        )
+        raise ValueError(f"Unsupported MealMuse tool: {tool_name}")
 
-    parsed_intent = apply_clarification_policy(
-        parsed_intent
-    )
+    logger.info("Tool selected: %s", tool_name)
+
+    parsed_intent = apply_clarification_policy(parsed_intent)
 
     if parsed_intent.needs_clarification:
         return ChatResponse(
@@ -64,21 +62,14 @@ def orchestrate_chat(message: str) -> ChatResponse:
 
     if tool_name == "recommend_meals":
         try:
-            recommendations = execute_recommendation_tool(
-                parsed_intent
-            )
+            recommendations = execute_recommendation_tool(parsed_intent)
         except Exception as exc:
-            raise ToolExecutionError(
-                "Recommendation tool execution failed."
-            ) from exc
+            raise ToolExecutionError("Recommendation tool execution failed.") from exc
 
         if not recommendations:
             return ChatResponse(
                 result_state=ResultState.NO_RESULTS,
-                message=(
-                    "I couldn't find any recipes matching "
-                    "those constraints."
-                ),
+                message=("I couldn't find any recipes matching " "those constraints."),
                 parsed_intent=parsed_intent,
                 recommendations=[],
                 recipes=[],
@@ -93,25 +84,20 @@ def orchestrate_chat(message: str) -> ChatResponse:
         )
 
     try:
-        recipes = execute_recipe_search_tool(
-        parsed_intent
-        )
+        recipes = execute_recipe_search_tool(parsed_intent)
     except Exception as exc:
-        raise ToolExecutionError(
-            "Recipe-search tool execution failed."
-        ) from exc
+        raise ToolExecutionError("Recipe-search tool execution failed.") from exc
 
     if not recipes:
         return ChatResponse(
             result_state=ResultState.NO_RESULTS,
-            message=(
-                "I couldn't find a recipe matching that dish."
-            ),
+            message=("I couldn't find a recipe matching that dish."),
             parsed_intent=parsed_intent,
             recommendations=[],
             recipes=[],
         )
 
+    logger.info("Chat orchestration completed with state=%s", ResultState.SUCCESS.value)
     return ChatResponse(
         result_state=ResultState.SUCCESS,
         message=None,
