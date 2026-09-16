@@ -4,6 +4,7 @@ from backend.app.repositories.recipe_repository import structured_search
 
 import pytest
 
+@pytest.mark.integration
 def test_structured_search_respects_time_limit():
     intent = ParsedIntent(
         ingredients_available=["chicken"],
