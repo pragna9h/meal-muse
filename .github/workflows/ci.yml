@@ -13,6 +13,17 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
 
+    env:
+      OPENAI_API_KEY: test-key
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mealmuse_test
+      POSTGRES_USER: mealmuse_test
+      POSTGRES_PASSWORD: test-password
+      APP_ENV: test
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: http://localhost:5173
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
