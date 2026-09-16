@@ -21,6 +21,9 @@ def create_database_engine() -> Engine:
     return create_engine(
         build_database_url(),
         pool_pre_ping=True,
+         connect_args={
+            "connect_timeout": 3,
+        },
     )
 
 

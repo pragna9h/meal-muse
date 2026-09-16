@@ -7,6 +7,10 @@ from backend.app.models.chat import (
     MealRecommendation,
     ParsedIntent,
 )
+from backend.app.orchestration.exceptions import (
+    ToolExecutionError,
+    ToolSelectionError,
+)
 from backend.app.models.orchestration import ResultState
 
 
@@ -230,3 +234,48 @@ def test_chat_returns_no_results(monkeypatch):
     assert data["result_state"] == "no_results"
     assert data["recommendations"] == []
     assert data["recipes"] == []
+
+def test_chat_returns_500_when_tool_selection_fails(monkeypatch):
+    def mock_orchestrate_chat(message: str):
+        raise ToolSelectionError("Tool selection failed.")
+
+    monkeypatch.setattr(
+        "backend.app.api.chat.orchestrate_chat",
+        mock_orchestrate_chat,
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "I have chicken and rice."
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "MealMuse could not understand the request.",
+    }
+    assert "x-request-id" in response.headers
+
+
+def test_chat_returns_503_when_tool_execution_fails(monkeypatch):
+    def mock_orchestrate_chat(message: str):
+        raise ToolExecutionError("Tool execution failed.")
+
+    monkeypatch.setattr(
+        "backend.app.api.chat.orchestrate_chat",
+        mock_orchestrate_chat,
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "I have chicken and rice."
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "MealMuse could not complete the request right now.",
+    }
+    assert "x-request-id" in response.headers
