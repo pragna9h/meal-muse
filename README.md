@@ -297,12 +297,13 @@ This keeps recommendation behavior interpretable and testable.
 
 ### Infrastructure & Testing
 
-- Docker
+- Docker + Docker Compose
+- Nginx
 - Pytest
+- GitHub Actions CI/CD
 
 ### Production Roadmap
 
-- GitHub Actions CI/CD
 - GCP deployment
 - structured logging and observability
 - production health/readiness checks
@@ -318,13 +319,15 @@ MealMuse production requirement.
 MealMuse is validated across backend unit/regression tests, integration tests,
 frontend static validation, production builds, and manual full-stack testing.
 
-Current Day 4 validation:
+Current Day 5 validation:
 
 ```text
-Backend test suite             27 / 27 PASS
-Frontend ESLint                     PASS
-Frontend production build           PASS
-Full-stack browser validation        PASS
+Backend test suite                  32 / 32 PASS
+CI-safe backend suite        30 PASS / 2 deselected
+Frontend ESLint                           PASS
+Frontend production build                 PASS
+Containerized full-stack validation        PASS
+GitHub Actions CI                          PASS
 ```
 
 Current coverage includes:
@@ -409,20 +412,23 @@ For details, see [`docs/testing.md`](docs/testing.md).
 - [x] Production frontend build
 - [x] Full-stack browser validation
 
-### Next — Production Hardening & Deployment
+### Phase V — Production Hardening, Docker & CI
 
-- [ ] structured application logging
-- [ ] production error handling
-- [ ] request tracing and latency measurement
-- [ ] production environment configuration
-- [ ] production CORS configuration
-- [ ] application containerization
-- [ ] health and readiness checks
-- [ ] GitHub Actions CI
-- [ ] integration and failure testing
+- [x] production configuration and CORS
+- [x] request logging, IDs, and latency measurement
+- [x] dependency failure handling
+- [x] health and readiness checks
+- [x] full-stack Docker Compose environment
+- [x] Nginx API reverse proxy
+- [x] integration and failure testing
+- [x] GitHub Actions CI
+- [x] containerized full-stack validation
+
+### Next — Cloud Deployment & Observability
+
 - [ ] GCP deployment
-- [ ] production observability
-- [ ] load testing
+- [ ] OpenTelemetry and runtime observability
+- [ ] load and performance testing
 - [ ] production validation
 
 ---

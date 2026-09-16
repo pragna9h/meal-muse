@@ -19,23 +19,28 @@ Testing is split into:
 Deterministic application behavior is tested with Pytest without requiring
 live external services where possible.
 
-Normal regression suite:
+Pytest discovery is restricted to the automated test suite under
+`backend/tests`. Manual OpenAI smoke-test scripts remain outside automated
+test discovery.
 
-```bash
+CI-safe regression suite:
+
+````bash
 python -m pytest -v -m "not integration"
 
 Current result:
 
 ```text
-26 passed
-1 deselected
-```
+30 passed
+2 deselected
+````
 
 ## Backend Integration Tests
 
-Tests that require PostgreSQL, pgvector, or live OpenAI calls are marked: `integration`
+Tests requiring PostgreSQL, pgvector, or live OpenAI-dependent retrieval are
+marked `integration`.
 
-Run with :
+Run with:
 
 ```bash
 python -m pytest -v -m integration
@@ -49,15 +54,21 @@ Current result:
 ```
 
 ## Complete Backend Suite
+
+With PostgreSQL running and required external configuration available:
+
 ```bash
 python -m pytest -v
 ```
+
 Current Result:
+
 ```text
-27 passed
+32 passed
 ```
 
 ## Frontend Validation
+
 The React and TypeScript frontend is validated using ESLint:
 
 ```bash
@@ -66,16 +77,20 @@ npm run lint
 ```
 
 Current result:
+
 ```text
 PASS
 No ESLint errors or warnings
 ```
+
 The production frontend build is validated with:
+
 ```bash
 npm run build
 ```
 
 Current result:
+
 ```text
 PASS
 Vite production build completed successfully
@@ -114,18 +129,25 @@ http://127.0.0.1:8000/docs
 Validates:
 
 - health endpoint
+- readiness success
+- readiness failure when PostgreSQL is unavailable
 - meal-recommendation response
 - direct recipe-search response
 - clarification response
 - no-results response
-- `ChatResponse` serialization through the orchestrator
+- tool-selection failure maps to HTTP 500
+- tool-execution failure maps to HTTP 503
+- request IDs are returned on successful and controlled failure responses
+- `ChatResponse` serialization through the API boundary
 
 ## Recipe Detail
+
 Recipe-detail retrieval validates the deterministic path used when a user selects a result card.
 
 ```text
 Known recipe_id -> GET /recipes/{recipe_id} -> Recipe Repository -> PostgreSQL -> Full Recipe
 ```
+
 This path intentionally bypasses the LLM and orchestration layer because the application already knows which recipe the user selected.
 
 ## Chat Orchestration
@@ -155,6 +177,7 @@ Mocks the OpenAI Responses API and validates:
 - unsupported tool handling
 - zero tool calls
 - multiple tool calls
+- OpenAI request failure handling
 
 ## Intent Compatibility
 
@@ -189,9 +212,9 @@ Validates:
 - structured retrieval respects maximum-time constraints
 - hybrid retrieval merges and deduplicates candidates
 
-The hybrid retrieval test is marked as integration test as it requires PostgreSQL, pgvector, and a live query embedding.
+Both retrieval tests are marked as integration tests because they require external infrastructure. Hybrid retrieval additionally requires live query embedding generation.
 
---- 
+---
 
 # 3. Manual End-to-End Validation
 
@@ -330,6 +353,83 @@ Validated:
 
 Status: PASS
 
+## Containerized Runtime Validation
+
+The complete production-oriented stack was validated through Docker Compose:
+
+```text
+Browser
+   ↓
+Nginx / React
+   ↓
+/api reverse proxy
+   ↓
+FastAPI
+   ↓
+PostgreSQL + pgvector
+```
+
+Validated:
+
+- PostgreSQL container health
+- FastAPI container health
+- frontend container startup
+- backend-to-database Docker networking
+- Nginx-to-FastAPI reverse proxy
+- recommendation requests through the containerized stack
+- direct recipe-search requests through the containerized stack
+- deterministic recipe-detail retrieval through the containerized stack
+
+Status: PASS
+
+## Dependency Failure and Recovery
+
+PostgreSQL was deliberately stopped while the backend remained running.
+
+Validated:
+
+```text
+PostgreSQL available:
+    /health -> 200
+    /ready  -> 200
+
+PostgreSQL unavailable:
+    /health -> 200
+    /ready  -> 503
+
+PostgreSQL restored:
+    /ready  -> 200
+```
+
+The initial failure exercise exposed that database connection attempts could wait too long when PostgreSQL was unavailable. A bounded database connection timeout was added, after which `/ready` returned its controlled HTTP 503 response promptly.
+
+Status: PASS
+
+## Continuous Integration Validation
+
+GitHub Actions automatically validates pushes and pull requests targeting
+`main`.
+
+The CI pipeline contains two independent jobs.
+
+### Backend Tests
+
+```text
+Python 3.12
+    ↓
+Install dependencies
+    ↓
+python -m pytest -m "not integration" -v
+```
+
+Current CI results:
+
+```text
+30 passed
+2 deselected
+PASS
+```
+
 # 4. Important behaviors protected by tests
 
 MealMuse tests currently protect the following architectural guarantees:
@@ -403,23 +503,53 @@ Frontend production build         PASS
 Full-stack smoke tests            PASS
 
 Overall status                    PASS
+
+Day 5 — Production Hardening + Docker + CI
+
+Request ID middleware             PASS
+Request latency logging           PASS
+OpenAI dependency failure         PASS
+Tool execution failure            PASS
+Health endpoint                   PASS
+Readiness endpoint                PASS
+Database failure detection        PASS
+Database recovery                 PASS
+Bounded DB connection timeout     PASS
+Backend Docker image              PASS
+Frontend Docker image             PASS
+Docker Compose full stack         PASS
+Nginx API reverse proxy           PASS
+Container dependency ordering     PASS
+GitHub Actions backend CI         PASS
+GitHub Actions frontend CI        PASS
+
+Final Day 5 Validation
+
+Backend complete suite             PASS (32 / 32)
+Backend CI-safe suite              PASS (30 passed, 2 deselected)
+Frontend lint                      PASS
+Frontend production build          PASS
+Containerized recommendation flow  PASS
+Containerized recipe-search flow   PASS
+Containerized recipe-detail flow   PASS
+GitHub Actions CI                   PASS
+
+Overall status                     PASS
 ```
 
 # 6. Planned Testing
 
-The production-hardening and deployment phases will add validation for:
+The cloud-deployment and observability phases will add validation for:
 
-- structured application logging
-- dependency and infrastructure failure handling
-- request tracing and latency measurement
-- production configuration
-- health and readiness behavior
-- containerized application startup
-- frontend/backend integration in the containerized environment
-- GitHub Actions CI
-- production deployment
-- observability
-- load and performance testing
+- GCP deployment health
+- production environment configuration
+- deployed frontend/backend connectivity
+- deployed database connectivity
+- runtime tracing and observability
+- production dependency failures
+- load and performance behavior
 - production end-to-end validation
 
-Additional infrastructure such as caching will only introduce corresponding tests if that infrastructure is actually added to MealMuse.
+Additional infrastructure such as caching, distributed tracing, or metrics
+backends will only introduce corresponding tests if that infrastructure is
+actually added to MealMuse.

@@ -640,7 +640,10 @@ Direct recipe search follows the same orchestration boundary but executes search
 | PostgreSQL                      | Runtime recipe store and structured querying                                                |
 | pgvector                        | Vector storage and semantic similarity search                                               |
 | SQLAlchemy                      | Python/PostgreSQL connection and query execution                                            |
-| Docker                          | Local PostgreSQL/pgvector environment                                                       |
+| Docker                          | Reproducible containerization of the frontend, backend, and PostgreSQL/pgvector services    |
+| Docker Compose                  | Full-stack service orchestration, dependency ordering, networking, and health checks        |
+| Nginx                           | Serves the production frontend and reverse-proxies `/api` requests to FastAPI               |
+| GitHub Actions                  | Automated backend testing, frontend linting, and production-build validation                |
 | Pytest                          | Backend regression and integration testing                                                  |
 | ESLint                          | Frontend code-quality validation                                                            |
 
@@ -800,28 +803,46 @@ Recommendation / Search Services
 PostgreSQL + pgvector
 ```
 
+## Day 5
+
+The application was hardened and containerized as a reproducible full-stack system.
+
+Production-oriented infrastructure was added around the existing application architecture without changing the core recommendation or search behavior.
+
+```text
+Browser
+   ↓
+Nginx / React Frontend
+   ↓
+/api reverse proxy
+   ↓
+FastAPI Backend
+   ↓
+Application / Orchestration Layers
+   ↓
+PostgreSQL + pgvector
+```
+
 ---
 
 # 20. Next Architectural Phase
 
-The next architectural phase focuses on production hardening and deployment rather than expanding MealMuse's product feature set.
+MealMuse is now a production-oriented, containerized full-stack application with automated CI and operational health checks.
+
+The next phase focuses on public cloud deployment and runtime observability rather than adding additional V1 product features.
 
 Planned work includes:
 
-- structured application logging,
-- stronger dependency and infrastructure error handling,
-- request tracing and latency measurement,
-- production-safe environment configuration,
-- production CORS configuration,
-- backend and frontend containerization,
-- health and readiness checks,
-- GitHub Actions CI,
-- integration testing,
-- production deployment to GCP,
-- runtime observability,
-- load and failure testing,
-- production validation.
+- deployment to GCP,
+- managed production infrastructure and configuration,
+- runtime observability and distributed tracing,
+- OpenTelemetry instrumentation,
+- metrics collection,
+- Prometheus/Grafana where justified by the deployed architecture,
+- load testing,
+- production failure validation,
+- final deployment documentation.
 
-The goal of the next phase is to evolve MealMuse from a complete local full-stack application into a reproducible, observable, and publicly deployable production system.
+The goal is to move the validated containerized application from the local Docker environment into a publicly accessible production environment and verify its behavior under realistic runtime conditions.
 
 Persistent conversational state, constraint merging across turns, and reference resolution remain deferred to a future V2 unless a concrete product requirement justifies them.
