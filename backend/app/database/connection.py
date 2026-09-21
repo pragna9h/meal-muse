@@ -7,6 +7,20 @@ from backend.app.config.settings import get_settings
 def build_database_url() -> URL:
     settings = get_settings()
 
+    if settings.cloud_sql_connection_name:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=settings.postgres_user,
+            password=settings.postgres_password,
+            database=settings.postgres_db,
+            query={
+                "host": (
+                    f"/cloudsql/"
+                    f"{settings.cloud_sql_connection_name}"
+                )
+            },
+        )
+
     return URL.create(
         drivername="postgresql+psycopg",
         username=settings.postgres_user,
@@ -21,7 +35,7 @@ def create_database_engine() -> Engine:
     return create_engine(
         build_database_url(),
         pool_pre_ping=True,
-         connect_args={
+        connect_args={
             "connect_timeout": 3,
         },
     )
