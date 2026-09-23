@@ -41,10 +41,9 @@ body,
   max-width: 100%;
 }
 
-html,
-body {
-  margin: 0;
-  overflow-x: hidden;
+html {
+  overflow-x: clip;
+  overflow-y: auto;
 }
 
 body {
@@ -53,6 +52,12 @@ body {
     radial-gradient(circle at 15% 20%, rgba(247, 225, 182, 0.22), transparent 25%),
     radial-gradient(circle at 90% 25%, rgba(238, 220, 185, 0.18), transparent 22%),
     var(--cream);
+    overflow-x: clip;
+    overflow-y: visible;
+}
+
+#root {
+  overflow: visible;
 }
 
 button,
