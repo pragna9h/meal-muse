@@ -2,7 +2,7 @@
 
 **Production-grade agentic AI meal discovery system built with React, FastAPI, PostgreSQL, pgvector, OpenAI, Docker, and Google Cloud.**
 
-#### ✅ Try [MealMuse Live](https://mealmuse-frontend-y4ymgnrpwq-uw.a.run.app/)
+#### ✅ Try [MealMuse](https://mealmuse-frontend-y4ymgnrpwq-uw.a.run.app/) Live
 
 MealMuse turns natural-language meal requests into grounded recipe recommendations and direct recipe search results.
 
