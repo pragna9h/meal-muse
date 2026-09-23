@@ -2,7 +2,7 @@
 
 This document describes the architecture of MealMuse, the responsibilities of its major components, and the engineering decisions behind them.
 
-The architecture will evolve as MealMuse moves from the recommendation foundation toward agentic orchestration, production deployment, and observability.
+MealMuse V1 has evolved from an initial recommendation pipeline into a full-stack, production-deployed agentic AI system with hybrid retrieval, deterministic application controls, containerized infrastructure, continuous integration, production observability, and performance validation.
 
 ---
 
@@ -626,28 +626,33 @@ Direct recipe search follows the same orchestration boundary but executes search
 
 # 17. Current Technology Responsibilities
 
-| Technology / Component          | Responsibility                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------------- |
-| React                           | User-facing interface and UI state rendering                                                |
-| TypeScript                      | Typed frontend contracts and component development                                          |
-| Vite                            | Frontend development and production build tooling                                           |
-| FastAPI                         | HTTP API layer                                                                              |
-| OpenAI language model           | Natural-language understanding and tool selection                                           |
-| OpenAI `text-embedding-3-small` | Semantic query and recipe embeddings                                                        |
-| Chat Orchestrator               | Coordinates tool selection, validation, clarification, execution, and response construction |
-| OpenAI tool calling             | Exposes explicit meal-recommendation and recipe-search capabilities                         |
-| Pydantic                        | API/domain validation and structured contracts                                              |
-| PostgreSQL                      | Runtime recipe store and structured querying                                                |
-| pgvector                        | Vector storage and semantic similarity search                                               |
-| SQLAlchemy                      | Python/PostgreSQL connection and query execution                                            |
-| Docker                          | Reproducible containerization of the frontend, backend, and PostgreSQL/pgvector services    |
-| Docker Compose                  | Full-stack service orchestration, dependency ordering, networking, and health checks        |
-| Nginx                           | Serves the production frontend and reverse-proxies `/api` requests to FastAPI               |
-| GitHub Actions                  | Automated backend testing, frontend linting, and production-build validation                |
-| Pytest                          | Backend regression and integration testing                                                  |
-| ESLint                          | Frontend code-quality validation                                                            |
-
-Each component is intended to solve a specific MealMuse requirement rather than being included solely for technology breadth.
+| Technology / Component | Responsibility |
+| --- | --- |
+| React | User-facing interface and UI state rendering |
+| TypeScript | Typed frontend contracts and component development |
+| Vite | Frontend development and production build tooling |
+| FastAPI | HTTP API layer |
+| OpenAI language model | Natural-language understanding and tool selection |
+| OpenAI `text-embedding-3-small` | Semantic query and recipe embeddings |
+| Chat Orchestrator | Coordinates tool selection, validation, clarification, execution, and response construction |
+| OpenAI tool calling | Exposes explicit meal-recommendation and recipe-search capabilities |
+| Pydantic | API/domain validation and structured contracts |
+| PostgreSQL | Runtime recipe store and structured querying |
+| pgvector | Vector storage and semantic similarity search |
+| SQLAlchemy | Python/PostgreSQL connection and query execution |
+| Docker | Reproducible containerization of frontend, backend, and PostgreSQL/pgvector services |
+| Docker Compose | Local full-stack orchestration, dependency ordering, networking, and health checks |
+| Nginx | Serves the production frontend and reverse-proxies `/api/*` requests to FastAPI |
+| GitHub Actions | Automated backend testing, frontend linting, and production-build validation |
+| Pytest | Backend regression and integration testing |
+| ESLint | Frontend code-quality validation |
+| Google Cloud Run | Independently deploys and scales the frontend and backend services |
+| Google Cloud SQL | Managed production PostgreSQL + pgvector database |
+| Artifact Registry | Stores production frontend and backend container images |
+| Google Cloud Build | Builds production container images |
+| Secret Manager | Stores production database and OpenAI credentials |
+| Google Cloud IAM | Controls least-privilege service access to production resources |
+| Cloud Logging | Centralized production request and application-log inspection |
 
 ---
 
@@ -823,40 +828,225 @@ Application / Orchestration Layers
 PostgreSQL + pgvector
 ```
 
+## Day 6
+
+MealMuse moved from a locally containerized system to a deployed cloud architecture on Google Cloud Platform.
+
+The existing application boundaries were preserved while the infrastructure changed:
+
+```text
+Browser
+   ↓
+Cloud Run — React + Nginx
+   ↓
+/api/* reverse proxy
+   ↓
+Cloud Run — FastAPI
+   ├── OpenAI API
+   ↓
+Cloud SQL — PostgreSQL + pgvector
+```
+
+The existing PostgreSQL corpus was migrated to Cloud SQL rather than rebuilding the dataset or regenerating embeddings.
+
+The migration preserved:
+- 50,514 recipes
+- 50,514 precomputed embeddings
+- 1536-dimensional vector data
+- recipe indexes
+- pgvector-backed retrieval
+
+Production secrets were moved to Secret Manager, and the backend was assigned a dedicated service identity with least-privilege access to Cloud SQL and required secrets.
+
+Frontend and backend container images are built using Cloud Build, stored in Artifact Registry, and deployed independently to Cloud Run.
+
+GitHub Actions remains responsible for continuous integration. Production deployment is intentionally manual for V1.
+
+
+## Day 7 
+
+The final architecture phase focused on validating the behavior of the deployed system rather than introducing additional infrastructure without evidence.
+
+Production observability established visibility into: incoming requests, request IDs, response status, request latency, application workflow execution, dependency failures, Cloud Run runtime behavior.
+
+Failure/debugging exercises verified that dependency failures surface through controlled application and HTTP semantics rather than appearing as successful product responses.
+
+Load and performance testing was then used to evaluate the deployed request path:
+```text
+Client
+   ↓
+Cloud Run Frontend
+   ↓
+Cloud Run Backend
+   ↓
+OpenAI Tool Selection
+   ↓
+Query Embedding
+   ↓
+Cloud SQL / pgvector Retrieval
+   ↓
+Filtering + Ranking
+   ↓
+Response
+```
+
+Bottleneck analysis was based on measured runtime behavior rather than assumptions.
+
+The optimization decision followed an evidence-based rule: add infrastructure or caching only when measurements demonstrate a meaningful bottleneck and the added complexity solves a current requirement.
+
+No additional optimization layer was introduced solely for technology breadth.
+
+The final production system was regression-tested across health/readiness, meal recommendation, direct recipe search, deterministic recipe-detail retrieval, clarification behavior, frontend-to-backend communication, and production logging.
+
 ---
 
-# 20. Production Deployment
+# 20. Production Architecture
 
-MealMuse V1 is deployed on Google Cloud Platform.
+MealMuse V1 is deployed on Google Cloud Platform as a full-stack production system.
 
 ```text
 Browser
    |
    v
 Cloud Run
-React + Nginx
+React + Nginx Frontend
    |
    | /api/*
    v
 Cloud Run
-FastAPI
+FastAPI Backend
    |
-   +--> OpenAI API
+   +---------------------> OpenAI API
    |
    v
 Cloud SQL
 PostgreSQL + pgvector
 ```
 
-Artifact Registry stores the frontend and backend container images. Google Cloud Build builds the production images.
+The frontend and backend are independently deployable Cloud Run services.
 
-The backend runs under a dedicated service account and accesses Cloud SQL and runtime secrets using IAM permissions. Database credentials and the OpenAI API key are stored in Secret Manager.
+Nginx serves the compiled React application and reverse-proxies `/api/*` traffic to the backend service.
 
-The production PostgreSQL database contains the same 50,514-recipe corpus and embeddings used by the local system.
+The FastAPI backend owns orchestration, application policy, retrieval coordination, filtering, ranking, and deterministic recipe-detail retrieval.
 
-The frontend and backend remain separate deployable services. Nginx serves the React application and proxies /api/* traffic to the backend Cloud Run service.
+PostgreSQL + pgvector in Cloud SQL provides both structured recipe storage and semantic vector retrieval over the same corpus.
 
-Automated CI runs through GitHub Actions. Production CD remains manual for V1 and is documented as a future improvement.
+Artifact Registry stores production frontend and backend container images, while Cloud Build performs production image builds.
 
+Runtime database credentials and the OpenAI API key are stored in Secret Manager rather than source code or container images.
 
-**NOTE:** Persistent conversational state, constraint merging across turns, and reference resolution remain deferred to a future V2 of the app.
+The backend runs under a dedicated service account with least-privilege access to the production resources it requires.
+
+The production database contains:
+
+```text
+50,514 recipes
+50,514 precomputed embeddings
+1536 dimensions per embedding
+```
+
+The production corpus was migrated from the existing PostgreSQL environment so embeddings did not need to be regenerated.
+
+## Production Reliability Boundaries
+
+The backend exposes separate liveness and readiness semantics:
+
+```text
+/health
+    ↓
+Is the API process alive?
+
+/ready
+    ↓
+Can the application reach PostgreSQL?
+```
+
+This distinction allows an infrastructure dependency failure to be detected independently from API-process health.
+
+Application failures are also separated from valid product outcomes:
+
+```text
+SUCCESS
+CLARIFICATION_REQUIRED
+NO_RESULTS
+```
+
+are application states, while orchestration and dependency failures surface through appropriate HTTP failure responses.
+
+Request IDs and latency logging provide correlation and runtime visibility during production debugging.
+
+## Delivery Model
+
+GitHub Actions provides continuous integration for:
+
+- backend regression tests
+- frontend lint validation
+- frontend production-build validation
+
+Production deployment remains manual for V1.
+
+Automated continuous deployment is intentionally deferred because MealMuse is currently a single-developer project with infrequent production deployments. Additional deployment automation and credentials would add operational complexity without solving a current product requirement.
+
+CD can be introduced if deployment frequency or team requirements increase.
+
+## Production Validation
+
+The final deployed architecture has been validated across:
+
+- backend health
+- database readiness
+- Cloud Run-to-Cloud SQL connectivity
+- OpenAI tool selection
+- query embedding generation
+- PostgreSQL + pgvector hybrid retrieval
+- deterministic hard filtering
+- deterministic ranking
+- meal recommendation
+- direct recipe search
+- deterministic recipe-detail retrieval
+- clarification handling
+- no-results behavior
+- frontend-to-backend reverse proxying
+- dependency failure behavior
+- production request logging
+- load and performance behavior
+- final end-to-end production regression
+
+Detailed validation evidence is maintained in [`testing.md`](testing.md).
+
+---
+
+# 21. V1 Architecture Status
+
+MealMuse V1 is feature-complete for its defined scope.
+
+The final architecture provides:
+
+- natural-language request understanding
+- explicit AI tool boundaries
+- deterministic application policy
+- hybrid structured + semantic retrieval
+- deterministic filtering and ranking
+- direct deterministic recipe-detail retrieval
+- PostgreSQL + pgvector persistence
+- a React + TypeScript frontend
+- containerized local environments
+- continuous integration
+- independent frontend/backend cloud deployment
+- managed production PostgreSQL
+- runtime secret management
+- health and readiness semantics
+- production logging and request correlation
+- dependency-failure handling
+- load and performance validation
+- production regression validation
+
+The architecture intentionally does not include components that are not currently justified by product or measured runtime requirements.
+
+Potential V2 capabilities include:
+
+- persistent conversational state
+- constraint merging across turns
+- reference resolution
+- conversational follow-up over previous recommendations
+- additional application tools

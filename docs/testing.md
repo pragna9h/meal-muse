@@ -1,7 +1,8 @@
 # MealMuse Testing
 
 This document summarizes how MealMuse is validated across its API,
-orchestration, retrieval, filtering, ranking, and database layers.
+orchestration, retrieval, filtering, ranking, frontend, infrastructure,
+failure-handling, performance, and production deployment layers.
 
 Testing is split into:
 
@@ -9,6 +10,11 @@ Testing is split into:
 - backend integration tests
 - frontend static validation and production build validation
 - manual full-stack end-to-end validation
+- containerized runtime and dependency-failure validation
+- continuous integration
+- production observability and debugging validation
+- load and performance testing
+- final production regression
 
 ---
 
@@ -461,7 +467,9 @@ Recipe loading                    PASS
 Filtering                         PASS
 Ranking                           PASS
 Clarification                     PASS
+```
 
+```text
 Day 2 — PostgreSQL + pgvector
 
 Database ingestion                PASS (50,514 recipes)
@@ -469,7 +477,9 @@ Recipe embeddings                 PASS (50,514 recipes)
 Structured retrieval              PASS
 Semantic retrieval                PASS
 Hybrid retrieval                  PASS
+```
 
+```text
 Day 3 — Agentic Orchestration
 
 Tool selection                    PASS
@@ -480,7 +490,9 @@ Clarification handling            PASS
 No-results handling               PASS
 Tool failure handling             PASS
 Manual Swagger validation         PASS
+```
 
+```text
 Day 4 — React + TypeScript Frontend
 
 Frontend recommendation flow      PASS
@@ -503,7 +515,10 @@ Frontend production build         PASS
 Full-stack smoke tests            PASS
 
 Overall status                    PASS
+```
 
+
+```text
 Day 5 — Production Hardening + Docker + CI
 
 Request ID middleware             PASS
@@ -537,6 +552,65 @@ GitHub Actions CI                   PASS
 Overall status                     PASS
 ```
 
+```text
+Day 6 — GCP Production Deployment
+
+Cloud Run backend deployment          PASS
+Cloud Run frontend deployment         PASS
+Cloud SQL PostgreSQL connectivity     PASS
+pgvector production retrieval         PASS
+Production secret injection           PASS
+Backend health endpoint               PASS
+Backend readiness endpoint            PASS
+Frontend-to-backend proxy             PASS
+Production recommendation flow        PASS
+Production recipe-search flow         PASS
+Production recipe-detail flow         PASS
+Production clarification handling     PASS
+Production no-results handling        PASS
+Migrated recipe corpus                PASS (50,514 recipes)
+Migrated embeddings                   PASS (50,514 embeddings)
+
+Final Day 6 Validation
+
+Cloud Run frontend                    PASS
+Cloud Run backend                     PASS
+Cloud SQL                             PASS
+OpenAI integration                    PASS
+End-to-end production workflows       PASS
+
+Overall status                        PASS
+```
+
+```text
+Day 7 — Production Validation + Performance
+
+Production observability baseline     PASS
+Request ID correlation                PASS
+Request latency visibility            PASS
+Production log inspection             PASS
+Failure/debugging validation          PASS
+Dependency recovery validation        PASS
+Load and performance testing          PASS
+Bottleneck analysis                   PASS
+Optimization decision review          PASS
+Final backend regression              PASS
+Final frontend regression             PASS
+Final production E2E regression       PASS
+
+Final Day 7 Validation
+
+Health/readiness                      PASS
+Meal recommendation                   PASS
+Direct recipe search                  PASS
+Recipe-detail retrieval               PASS
+Clarification handling                PASS
+Frontend result rendering             PASS
+Production request logs               PASS
+
+Overall status                        PASS
+```
+
 # 6. Production End-to-End Validation
 
 The deployed GCP system was validated after deployment.
@@ -559,3 +633,249 @@ Validated production paths:
 The production recommendation flow successfully returned ranked recommendations from the migrated 50,514-recipe database.
 
 Deployment testing also exposed and resolved environment-specific issues involving Cloud SQL configuration, database credential synchronization, and migrated-table permissions.
+
+---
+
+# 7. Production Observability and Debugging Validation
+
+The deployed MealMuse system was inspected through production request and application logs to verify that runtime behavior can be traced during normal execution and failure scenarios.
+
+Validated signals include:
+
+- incoming HTTP requests
+- request IDs
+- response status
+- request latency
+- orchestration execution
+- selected application workflow
+- dependency failures
+- Cloud Run runtime behavior
+
+Request IDs allow application activity and controlled failures to be correlated across a request lifecycle.
+
+Production log inspection was performed while exercising real recommendation and recipe-search workflows.
+
+Status: PASS
+
+## Failure and Recovery Validation
+
+Failure testing verifies the distinction between valid product outcomes and infrastructure failures.
+
+MealMuse treats:
+
+```text
+SUCCESS
+CLARIFICATION_REQUIRED
+NO_RESULTS
+```
+
+as valid application states.
+
+Infrastructure or orchestration failures instead surface through controlled HTTP failure semantics.
+
+The database readiness behavior was also validated:
+
+```text
+Database available
+    /health -> 200
+    /ready  -> 200
+
+Database unavailable
+    /health -> 200
+    /ready  -> 503
+
+Database restored
+    /ready  -> 200
+```
+
+This verifies that process health remains distinct from dependency readiness.
+
+Status: PASS
+
+---
+
+# 8. Load and Performance Testing
+
+The deployed backend was exercised under repeated and concurrent requests to establish production behavior under load.
+
+The goal was not to optimize for an artificial benchmark. The goal was to:
+
+1. establish a performance baseline
+2. observe request behavior under concurrency
+3. inspect production logs
+4. identify the dominant request-path costs
+5. determine whether an additional optimization layer was justified
+
+The measured production request path includes:
+
+```text
+Client
+   ↓
+Cloud Run Backend
+   ↓
+OpenAI Tool Selection
+   ↓
+Query Embedding Generation
+   ↓
+PostgreSQL / pgvector Retrieval
+   ↓
+Deterministic Filtering
+   ↓
+Deterministic Ranking
+   ↓
+Response
+```
+
+Both MealMuse workflows were exercised:
+
+- meal recommendation
+- direct recipe search
+
+Validated:
+
+- successful responses under repeated requests
+- successful responses under concurrent requests
+- production request logging during load
+- request ID generation during concurrent execution
+- continued database and retrieval availability
+- no regression in response correctness
+
+Status: PASS
+
+---
+
+# 9. Bottleneck Analysis and Optimization Decision
+
+Performance analysis was based on observed production behavior rather than assuming that every production system requires additional caching or infrastructure.
+
+The request path was separated conceptually into:
+
+```text
+Network / Cloud Run
+        +
+LLM Tool Selection
+        +
+Embedding Generation
+        +
+Database / pgvector Retrieval
+        +
+Deterministic Filtering and Ranking
+```
+
+The purpose of the analysis was to determine which stages materially contribute to end-to-end latency and whether an additional optimization layer would solve a demonstrated problem.
+
+MealMuse follows the optimization rule:
+
+> Measure first. Optimize only when evidence justifies the additional complexity.
+
+No caching layer or additional distributed infrastructure was introduced solely to increase the number of technologies in the architecture.
+
+Potential optimizations remain available if future usage demonstrates a need, including:
+
+- caching repeated retrieval results
+- caching reusable query embeddings where appropriate
+- tuning retrieval candidate limits
+- database/index tuning
+- Cloud Run scaling configuration
+- reducing unnecessary external dependency calls
+
+For V1, the measured system behavior did not justify adding another architectural layer solely for portfolio breadth.
+
+Status: PASS
+
+---
+
+# 10. Final Production Regression
+
+After the final frontend correction and redeployment, MealMuse underwent a complete production regression.
+
+The final deployed path validated was:
+
+```text
+Browser
+   ↓
+Cloud Run React/Nginx Frontend
+   ↓
+/api reverse proxy
+   ↓
+Cloud Run FastAPI Backend
+   ↓
+Chat Orchestrator
+   ↓
+OpenAI Tool Selection
+   ↓
+Application Service
+   ↓
+PostgreSQL + pgvector
+   ↓
+Deterministic Filtering / Ranking
+   ↓
+API Response
+   ↓
+React UI
+```
+
+## Backend Regression
+
+Validated:
+
+- `/health`
+- `/ready`
+- meal-recommendation workflow
+- direct recipe-search workflow
+- clarification behavior
+- deterministic recipe-detail retrieval
+
+Responses were checked for correct result states, intent routing, populated result collections, and recipe-detail data.
+
+Status: PASS
+
+## Frontend Regression
+
+Validated in the deployed Cloud Run frontend:
+
+- meal-recommendation rendering
+- direct recipe-search rendering
+- recipe-card interaction
+- deterministic recipe-detail loading
+- source links
+- layout behavior
+- single document-level vertical scrolling
+- absence of the previously observed duplicate recipe-search scrollbar
+
+Status: PASS
+
+## Production Logs
+
+Production backend logs were inspected after the regression run.
+
+Validated:
+
+- successful `/chat` requests
+- successful `/recipes/{recipe_id}` requests
+- request IDs
+- request timing information
+- expected orchestration activity
+- absence of unexplained regression failures during the validation run
+
+Status: PASS
+
+## Final V1 Validation Status
+
+```text
+Automated backend tests              PASS
+Backend integration tests            PASS
+Frontend lint                        PASS
+Frontend production build            PASS
+Local full-stack validation           PASS
+Containerized full-stack validation   PASS
+Failure and recovery validation       PASS
+GitHub Actions CI                     PASS
+GCP production deployment             PASS
+Production observability              PASS
+Load/performance validation           PASS
+Bottleneck analysis                   PASS
+Final production regression           PASS
+
+MEALMUSE V1                          PASS
+```

@@ -1,284 +1,312 @@
 # MealMuse
 
-MealMuse is a full-stack AI-powered meal discovery application that helps users:
+**Production-grade agentic AI meal discovery system built with React, FastAPI, PostgreSQL, pgvector, OpenAI, Docker, and Google Cloud.**
 
-- decide what to cook from available ingredients, constraints, and preferences, or
-- directly find recipes when they already know the dish they want.
+#### ✅ Try [MealMuse Live](https://mealmuse-frontend-y4ymgnrpwq-uw.a.run.app/)
 
-MealMuse combines a React + TypeScript frontend with a FastAPI backend, agentic
-tool-based orchestration, hybrid PostgreSQL + pgvector retrieval, and
-deterministic filtering and ranking.
+MealMuse turns natural-language meal requests into grounded recipe recommendations and direct recipe search results.
 
-The project is being built as a production-grade Agentic AI system with a clear
-engineering boundary: AI handles natural-language interpretation and capability
-selection, while deterministic application code controls recipe facts,
-constraints, retrieval, ranking, and known actions.
+Instead of allowing an LLM to generate recipe facts or make final recommendation decisions, MealMuse uses AI for **natural-language interpretation and tool selection**, while deterministic application code controls **retrieval, constraints, ranking, recipe data, and known actions**.
 
-## Core Workflows
+The system operates over a corpus of **50,514 recipes with precomputed vector embeddings** and is deployed as a full-stack application on Google Cloud Platform.
+
+---
+
+## What MealMuse Does
+
+MealMuse supports two primary natural-language workflows.
 
 ### Meal Recommendation
 
-Example:
+Users can describe the ingredients they have along with preferences or constraints:
 
 ```text
-"I have chicken and rice. I want something spicy and Indian."
+"Chicken, tomatoes, rice. Give me something spicy and Indian."
 ```
 
-MealMuse interprets the request, retrieves relevant recipes using structured
-PostgreSQL search and semantic pgvector search, applies hard constraints, and
-deterministically ranks the remaining candidates.
+MealMuse:
+
+1. interprets the request using OpenAI tool calling
+2. extracts structured constraints and preferences
+3. retrieves candidates using PostgreSQL + pgvector
+4. applies deterministic hard constraints
+5. ranks valid recipes using deterministic signals
+6. returns the Top 5 recommendations
 
 ### Direct Recipe Search
 
-Example:
+Users can also search for a specific dish:
 
 ```text
 "How do I make chicken tikka masala?"
 ```
 
-MealMuse routes the request to a dedicated recipe-search workflow that combines
-recipe-name matching with semantic retrieval and returns complete recipe data.
+MealMuse routes the request to a dedicated recipe-search workflow combining recipe-name matching with semantic retrieval.
+
+Selecting a result uses its known `recipe_id` to retrieve complete recipe details directly from PostgreSQL without making another LLM call.
 
 ---
 
-## Architecture
+## System Architecture
 
 ```text
-User
- ↓
-React + TypeScript Frontend
- ↓
-FastAPI
- ↓
-POST /chat
- ↓
-Chat Orchestrator
- ↓
-OpenAI Tool Calling
- ↓
-Tool Selection
- ├───────────────────────────────┐
- ↓                               ↓
-recommend_meals               search_recipe
- ↓                               ↓
-Tool Arguments                Tool Arguments
- └───────────────┬───────────────┘
-                 ↓
-            ParsedIntent
-                 ↓
-     Deterministic Clarification
-                 ↓
- ┌───────────────┴───────────────┐
- ↓                               ↓
-Meal Recommendation          Direct Recipe Search
- ↓                               ↓
-Hybrid Retrieval             Name + Semantic Search
- ↓                               ↓
-PostgreSQL + pgvector        PostgreSQL + pgvector
- ↓                               ↓
-Full Recipe Hydration        Full Recipe Hydration
- ↓                               ↓
-Hard Filtering               Recipe Results
- ↓
-Deterministic Ranking
- ↓
-Top 5 Recommendations
- └───────────────┬───────────────┘
-                 ↓
-            ChatResponse
-                 ↓
-        Frontend Result Cards
+                         User
+                           |
+                           v
+                 React + TypeScript
+                           |
+                           v
+                    FastAPI API
+                           |
+                           v
+                  Chat Orchestrator
+                           |
+                           v
+                 OpenAI Tool Calling
+                           |
+               +-----------+-----------+
+               |                       |
+               v                       v
+        recommend_meals          search_recipe
+               |                       |
+               v                       v
+        Structured Arguments     Structured Arguments
+               |                       |
+               +-----------+-----------+
+                           |
+                           v
+                     ParsedIntent
+                           |
+                           v
+              Deterministic Application
+                       Policies
+                           |
+              +------------+------------+
+              |                         |
+              v                         v
+      Meal Recommendation        Recipe Search
+              |                         |
+              v                         v
+        Hybrid Retrieval       Name + Semantic
+              |                   Retrieval
+              |                         |
+              +------------+------------+
+                           |
+                           v
+                 PostgreSQL + pgvector
+                           |
+                           v
+                    Recipe Results
 ```
 
-A central design principle is:
+A central engineering principle is:
 
-> **Use AI where interpretation is required. Use deterministic code where
-> behavior must be predictable.**
+> **Use AI where interpretation is required. Use deterministic code where behavior must be predictable.**
 
-The LLM determines which application capability is appropriate and extracts
-structured arguments. The backend remains responsible for validation,
-clarification policy, retrieval, hard constraints, ranking, and database
-operations.
+The LLM selects an application capability and extracts structured arguments. It does not directly query the database, enforce hard constraints, rank recipes, or generate recipe facts.
 
-For detailed design decisions, see [`docs/architecture.md`](docs/architecture.md).
+For the detailed architecture and engineering decisions, see [`docs/architecture.md`](docs/architecture.md).
 
-## Frontend
+---
 
-MealMuse includes a React + TypeScript interface for both supported V1 workflows.
+## Hybrid Retrieval
 
-The frontend provides:
+MealMuse combines two retrieval strategies.
 
-- natural-language request input
-- Top 5 meal recommendation cards
-- Top 3 direct recipe-search results
-- recipe ratings and key metadata
-- ingredient previews
-- full recipe-detail selection
-- clarification responses
-- no-results handling
-- backend/network failure handling
-- animated loading state
-- prompt clearing and request-state reset
+**Structured PostgreSQL retrieval** handles explicit signals such as:
 
-The frontend remains a presentation and interaction layer. Recommendation logic, recipe retrieval, constraint enforcement, ranking, and recipe facts remain in the backend.
+- available ingredients
+- required or excluded ingredients
+- cuisine
+- meal type
+- equipment
+- time constraints
 
-Recipe-card selection uses the known `recipe_id` to retrieve complete recipe details directly rather than invoking the orchestration layer again.
+**Semantic pgvector retrieval** improves discovery for natural-language concepts and preferences.
+
+```text
+Structured Retrieval
+        +
+Semantic Retrieval
+        |
+        v
+Merge + Deduplicate
+        |
+        v
+Full Recipe Hydration
+        |
+        v
+Hard-Constraint Filtering
+        |
+        v
+Deterministic Ranking
+        |
+        v
+Top Recommendations
+```
+
+Hybrid retrieval improves candidate recall while deterministic filtering prevents semantically similar recipes from overriding explicit user requirements.
 
 ---
 
 ## Agentic Orchestration
 
-MealMuse currently exposes two AI-callable application tools:
+MealMuse exposes two AI-callable application tools:
 
 ```text
 recommend_meals
 search_recipe
 ```
 
-The chat orchestrator coordinates:
+The orchestration layer coordinates:
 
-1. request understanding and tool selection
-2. tool-argument validation
-3. `ParsedIntent` construction
-4. deterministic clarification
-5. application-tool execution
-6. result handling
-7. `ChatResponse` construction
+- tool selection
+- structured argument extraction
+- Pydantic validation
+- `ParsedIntent` construction
+- deterministic clarification
+- application-tool execution
+- result handling
+- response construction
 
-The orchestrator intentionally does **not** perform SQL, vector retrieval,
-recipe hydration, filtering, ranking, or nutrition calculations.
+Application outcomes explicitly distinguish successful results, clarification requirements, no-result states, and infrastructure failures.
 
-Those responsibilities remain in deterministic application layers.
-
----
-
-## Retrieval Architecture
-
-### Meal Recommendations
-
-Recommendation retrieval combines two candidate sources:
-
-```text
-Structured PostgreSQL Retrieval
-              +
-Semantic pgvector Retrieval
-              ↓
-      Merge + Deduplicate
-              ↓
-       Recipe Hydration
-              ↓
-      Hard-Constraint Filter
-              ↓
-    Deterministic Ranking
-              ↓
-             Top 5
-```
-
-Structured retrieval handles explicit constraints and metadata, while semantic
-retrieval improves discovery for natural-language preferences.
-
-### Direct Recipe Search
-
-```text
-Recipe-Name Search
-        +
-Semantic pgvector Search
-        ↓
-Merge + Deduplicate
-        ↓
-Full Recipe Hydration
-        ↓
-Recipe Results
-```
-
-Direct recipe search intentionally bypasses recommendation filtering and
-ranking because the user already knows what dish they want.
+This keeps AI reasoning behind controlled application boundaries instead of allowing the model to directly control system behavior.
 
 ---
 
 ## Recipe Data
 
-MealMuse uses a processed corpus of:
+MealMuse operates over:
 
 ```text
 50,514 recipes
+50,514 precomputed embeddings
+1536 dimensions per embedding
 ```
 
-The data pipeline normalizes and validates:
+Recipe data is normalized and stored in PostgreSQL, including ingredients, instructions, timing, servings, cuisines, categories, cooking methods, equipment, nutrition, ratings, and source information.
 
-- ingredients
-- instructions
-- preparation and cooking times
-- servings
-- cuisine and category metadata
-- cooking methods and equipment
-- nutrition
-- ratings
-- source URLs
+Semantic embeddings are generated using OpenAI `text-embedding-3-small` and stored with pgvector.
 
-All 50,514 recipes are stored in PostgreSQL and have 1536-dimensional OpenAI
-embeddings stored in pgvector.
-
-Embedding generation is batched, resumable, and includes retry/backoff handling
-for API rate limits.
+Embedding generation is performed offline using batching, incremental commits, resumability, and retry/backoff handling.
 
 ---
 
-## Deterministic Application Policies
+## Production Deployment
 
-MealMuse deliberately keeps several decisions outside the LLM.
+**Live application:** [MealMuse](https://mealmuse-frontend-y4ymgnrpwq-uw.a.run.app/) on Google Cloud Run
 
-### Hard Constraints
-
-Explicit requirements are enforced before ranking, including:
-
-- required ingredients
-- excluded ingredients
-- maximum preparation time
-
-Unknown recipe times cannot satisfy explicit maximum-time constraints.
-
-### Clarification
-
-Meal recommendation requests without enough ingredient information return a
-clarification request instead of arbitrary recommendations.
-
-Example:
+MealMuse is deployed on **Google Cloud Platform** using separate frontend and backend services.
 
 ```text
-User: "I want something healthy."
-
-MealMuse:
-"What ingredients do you have on hand?"
+Browser
+   |
+   v
+Cloud Run
+React + Nginx
+   |
+   | /api/*
+   v
+Cloud Run
+FastAPI
+   |             |
+   |             +--> OpenAI API
+   |
+   v
+Cloud SQL
+PostgreSQL + pgvector
 ```
 
-### Ranking
+Production infrastructure includes:
 
-After filtering, valid recommendation candidates are ranked using deterministic
-signals such as:
+- **Cloud Run** — independently deployed frontend and backend services
+- **Cloud SQL** — PostgreSQL 16 + pgvector
+- **Artifact Registry** — frontend and backend container images
+- **Cloud Build** — production Docker image builds
+- **Secret Manager** — database and OpenAI credentials
+- **IAM** — dedicated least-privilege backend service identity
+- **GitHub Actions** — continuous integration
 
-- ingredient coverage
-- missing ingredients
-- meal-type compatibility
-- cuisine preference
-- time suitability
-- recipe metadata and ratings
+The production database contains the migrated 50,514-recipe corpus and its precomputed embeddings.
 
-This keeps recommendation behavior interpretable and testable.
+Production deployment remains manual for V1 by design. Automated CD is deferred until deployment frequency or team size justifies the additional infrastructure and permissions.
+
+See [`docs/deployment.md`](docs/deployment.md) for deployment details.
+
+---
+
+## Production Engineering
+
+MealMuse includes production-oriented safeguards and validation beyond the core AI workflow:
+
+- health and database-readiness endpoints
+- request IDs
+- request latency logging
+- bounded database connection timeouts
+- controlled dependency-failure handling
+- explicit HTTP failure semantics
+- containerized local and production environments
+- Nginx API reverse proxying
+- runtime secret injection
+- least-privilege cloud identity
+- CI validation
+- production observability and log inspection
+- failure and recovery validation
+- load and performance testing
+- bottleneck analysis
+- evidence-based optimization decisions
+- final production regression validation
+
+Performance changes are driven by measured behavior rather than optimization being added solely for technology breadth.
+
+---
+
+## Testing
+
+MealMuse is validated across deterministic application logic, AI orchestration, retrieval, infrastructure, frontend behavior, and the deployed production system.
+
+Coverage includes:
+
+- recipe loading and normalization
+- hard-constraint filtering
+- deterministic ranking
+- structured retrieval
+- semantic retrieval
+- hybrid retrieval and deduplication
+- OpenAI tool selection
+- tool-argument validation
+- chat orchestration
+- clarification
+- no-results handling
+- dependency and tool-execution failures
+- deterministic recipe-detail retrieval
+- frontend recommendation and search workflows
+- frontend loading and failure states
+- Docker Compose full-stack behavior
+- database failure and recovery
+- GitHub Actions CI
+- Cloud Run / Cloud SQL integration
+- production end-to-end workflows
+- load and performance behavior
+- final production regression
+
+The backend test suite, frontend lint/build validation, containerized runtime validation, CI pipeline, and production regression have all been validated successfully.
+
+See [`docs/testing.md`](docs/testing.md) for the complete test strategy and validation evidence.
 
 ---
 
 ## Tech Stack
 
 ### Frontend
-
 - React 19
 - TypeScript
 - Vite
+- Nginx
 - ESLint
 
 ### Backend & AI
-
 - Python 3.12
 - FastAPI
 - Pydantic
@@ -287,7 +315,6 @@ This keeps recommendation behavior interpretable and testable.
 - OpenAI embeddings
 
 ### Data & Retrieval
-
 - PostgreSQL
 - pgvector
 - SQLAlchemy
@@ -295,223 +322,26 @@ This keeps recommendation behavior interpretable and testable.
 - PostgreSQL GIN indexes
 - hybrid structured + semantic retrieval
 
-### Infrastructure, Cloud & Testing
-
-- Docker + Docker Compose
-- Nginx
+### Infrastructure & Cloud
+- Docker
+- Docker Compose
 - Google Cloud Run
 - Google Cloud SQL
 - Google Artifact Registry
 - Google Cloud Build
 - Google Secret Manager
 - Google Cloud IAM
+
+### Testing & CI
 - Pytest
-- GitHub Actions CI
-
-### Production Engineering
-
-- health and readiness checks
-- request IDs and latency logging
-- dependency failure handling
-- containerized local environment
-- separate frontend and backend Cloud Run services
-- Cloud SQL PostgreSQL + pgvector
-- least-privilege backend service identity
-- runtime secret injection
-- production end-to-end validation
-
+- GitHub Actions
+- frontend lint and production-build validation
+- integration and production regression testing
+- load and performance testing
 
 ---
 
-## Testing
-
-MealMuse is validated across backend unit/regression tests, integration tests,
-frontend static validation, production builds, and manual full-stack testing.
-
-Current Day 5 validation:
-
-```text
-Backend test suite                  32 / 32 PASS
-CI-safe backend suite        30 PASS / 2 deselected
-Frontend ESLint                             PASS
-Frontend production build                   PASS
-Containerized full-stack validation         PASS
-GitHub Actions CI                           PASS
-GCP production deployment                   PASS
-Production end-to-end validation            PASS
-```
-
-Current coverage includes:
-
-- recipe loading and normalization
-- hard-constraint filtering
-- deterministic ranking
-- structured and semantic retrieval
-- hybrid retrieval and deduplication
-- multi-intent behavior
-- AI tool selection and argument validation
-- chat orchestration
-- clarification
-- no-results handling
-- tool-execution failure handling
-- recommendation UI flow
-- direct recipe-search UI flow
-- deterministic recipe-detail selection
-- loading and error states
-- frontend/backend integration
-
-The recommendation, direct recipe-search, clarification, no-results, failure, and recipe-detail workflows have also been validated through the completed React frontend.
-
-For details, see [`docs/testing.md`](docs/testing.md).
-
-Production validation additionally covers:
-
-- Cloud Run backend health
-- Cloud Run to Cloud SQL readiness
-- OpenAI tool selection
-- OpenAI embedding generation
-- production pgvector retrieval
-- frontend-to-backend Nginx proxying
-- recommendation and direct-search workflows
-- deterministic recipe-detail retrieval
-- clarification and no-results handling
-
-The production database contains the migrated 50,514-recipe corpus and its precomputed embeddings.
-
----
-
-## Project Status
-
-🚧 **Active Development**
-
-### Phase I — Recommendation Foundation
-
-- [x] FastAPI backend
-- [x] Recipe processing pipeline
-- [x] 50,514-recipe corpus
-- [x] Hard-constraint filtering
-- [x] Deterministic ranking
-- [x] Top-5 meal recommendations
-- [x] Clarification policy
-
-### Phase II — PostgreSQL + Hybrid Retrieval
-
-- [x] Dockerized PostgreSQL + pgvector
-- [x] 50,514 recipes stored in PostgreSQL
-- [x] 50,514 recipe embeddings
-- [x] Structured PostgreSQL retrieval
-- [x] pgvector semantic retrieval
-- [x] GIN indexes
-- [x] Hybrid candidate retrieval
-- [x] Retrieval deduplication
-- [x] Direct recipe search
-- [x] Full recipe hydration
-
-### Phase III — Agentic Orchestration
-
-- [x] OpenAI tool definitions
-- [x] Tool selection
-- [x] Pydantic tool-argument validation
-- [x] Chat orchestrator
-- [x] Recommendation tool
-- [x] Recipe-search tool
-- [x] Deterministic clarification
-- [x] Explicit result states
-- [x] Orchestration failure handling
-- [x] Unit and end-to-end validation
-
-### Phase IV — React + TypeScript Frontend
-
-- [x] React + TypeScript application
-- [x] Natural-language request interface
-- [x] Recommendation cards
-- [x] Direct recipe-search results
-- [x] Recipe-detail view
-- [x] Deterministic recipe-detail API path
-- [x] Clarification state
-- [x] No-results state
-- [x] Failure state
-- [x] Loading state
-- [x] Frontend/backend integration
-- [x] Frontend lint validation
-- [x] Production frontend build
-- [x] Full-stack browser validation
-
-### Phase V — Production Hardening, Docker & CI
-
-- [x] production configuration and CORS
-- [x] request logging, IDs, and latency measurement
-- [x] dependency failure handling
-- [x] health and readiness checks
-- [x] full-stack Docker Compose environment
-- [x] Nginx API reverse proxy
-- [x] integration and failure testing
-- [x] GitHub Actions CI
-- [x] containerized full-stack validation
-
-### Phase VI — GCP Production Deployment
-
-- [x] GCP production architecture
-- [x] Artifact Registry
-- [x] Cloud SQL PostgreSQL 16 + pgvector
-- [x] production database migration
-- [x] 50,514 recipes and embeddings migrated
-- [x] dedicated backend service account and IAM
-- [x] Secret Manager integration
-- [x] backend Docker image built with Cloud Build
-- [x] FastAPI backend deployed to Cloud Run
-- [x] React/Nginx frontend deployed to Cloud Run
-- [x] production health and readiness validation
-- [x] production recommendation workflow
-- [x] production direct recipe-search workflow
-- [x] production recipe-detail workflow
-- [x] clarification and no-results validation
-- [x] production end-to-end validation
-
-### Next — Observability & Performance
-
-- [ ] evaluate runtime observability requirements
-- [ ] load and performance testing
-- [ ] bottleneck analysis
-- [ ] evidence-based optimization where necessary
-- [ ] final production validation and repository cleanup
-
----
-
-## Production Deployment
-
-MealMuse is deployed on Google Cloud Platform.
-
-```text
-Browser
-   ↓
-Cloud Run — React + Nginx
-   ↓ /api/*
-Cloud Run — FastAPI
-   ├── OpenAI API
-   ↓
-Cloud SQL — PostgreSQL + pgvector
-```
-
-Production infrastructure includes:
-
-- Cloud Run for independently deployed frontend and backend services
-- Cloud SQL for PostgreSQL 16 + pgvector
-- Artifact Registry for container images
-- Cloud Build for production image builds
-- Secret Manager for database and OpenAI credentials
-- IAM with a dedicated least-privilege backend service account
-- GitHub Actions for continuous integration
-
-The production database contains the migrated 50,514-recipe corpus and precomputed 1536-dimensional embeddings.
-
-Production deployment remains manual for V1. Automated continuous deployment is deferred until deployment frequency or team size justifies the additional infrastructure and permissions.
-
-See `docs/deployment.md` for deployment details.
-
----
-
-## Running MealMuse
+## Running Locally
 
 ### 1. Start PostgreSQL + pgvector
 
@@ -529,9 +359,17 @@ Activate the Python environment and run:
 python -m uvicorn backend.app.main:app --reload
 ```
 
-The API is avilable at: `http://127.0.0.1:8000`
+API:
 
-Swagger documentation: `http://127.0.0.1:8000/docs`
+```text
+http://127.0.0.1:8000
+```
+
+Swagger:
+
+```text
+http://127.0.0.1:8000/docs
+```
 
 ### 3. Start the React frontend
 
@@ -543,7 +381,11 @@ npm install
 npm run dev
 ```
 
-Open the URL reported by Vite: `http://localhost:5173`
+Open the URL reported by Vite, typically:
+
+```text
+http://localhost:5173
+```
 
 ### 4. Run backend tests
 
@@ -561,6 +403,32 @@ npm run build
 
 ---
 
-## Goal
+## Engineering Documentation
 
-Build MealMuse into a **production-grade Agentic AI system** that demonstrates the engineering required to move an AI application from natural-language understanding through retrieval and deterministic application logic to a tested, observable, and publicly deployed full-stack product.
+Detailed engineering documentation is intentionally kept outside the README:
+
+- [`docs/architecture.md`](docs/architecture.md) — architecture, orchestration, retrieval, AI boundaries, and engineering decisions
+- [`docs/deployment.md`](docs/deployment.md) — GCP infrastructure and production deployment
+- [`docs/testing.md`](docs/testing.md) — automated, integration, failure, performance, and production validation
+
+---
+
+## Current Status
+
+**MealMuse V1 is complete and deployed.**
+
+The system currently includes:
+
+- full-stack React + FastAPI application
+- agentic tool-based orchestration
+- hybrid PostgreSQL + pgvector retrieval
+- deterministic filtering and ranking
+- 50,514-recipe production corpus
+- Dockerized development and production environments
+- GitHub Actions CI
+- GCP production deployment
+- production observability and failure validation
+- load and performance validation
+- final production regression testing
+
+Potential V2 work includes persistent conversational state, multi-turn constraint merging, reference resolution, and additional application tools.
