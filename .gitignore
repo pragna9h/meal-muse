@@ -29,3 +29,6 @@ data/processed/*
 # Keeping directory structure in Git
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+
+# Database dumps
+*.dump
