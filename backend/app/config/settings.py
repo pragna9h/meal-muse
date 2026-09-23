@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     openai_api_key: str
     openai_model: str = "gpt-5.4-mini"
     openai_embedding_model: str = "text-embedding-3-small"
-    postgres_host: str
-    postgres_port: int
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
     postgres_db: str
     postgres_user: str
     postgres_password: str
