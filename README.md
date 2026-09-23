@@ -295,22 +295,31 @@ This keeps recommendation behavior interpretable and testable.
 - PostgreSQL GIN indexes
 - hybrid structured + semantic retrieval
 
-### Infrastructure & Testing
+### Infrastructure, Cloud & Testing
 
 - Docker + Docker Compose
 - Nginx
+- Google Cloud Run
+- Google Cloud SQL
+- Google Artifact Registry
+- Google Cloud Build
+- Google Secret Manager
+- Google Cloud IAM
 - Pytest
-- GitHub Actions CI/CD
+- GitHub Actions CI
 
-### Production Roadmap
+### Production Engineering
 
-- GCP deployment
-- structured logging and observability
-- production health/readiness checks
-- load and failure testing
+- health and readiness checks
+- request IDs and latency logging
+- dependency failure handling
+- containerized local environment
+- separate frontend and backend Cloud Run services
+- Cloud SQL PostgreSQL + pgvector
+- least-privilege backend service identity
+- runtime secret injection
+- production end-to-end validation
 
-Additional infrastructure will only be introduced when it solves a concrete
-MealMuse production requirement.
 
 ---
 
@@ -324,10 +333,12 @@ Current Day 5 validation:
 ```text
 Backend test suite                  32 / 32 PASS
 CI-safe backend suite        30 PASS / 2 deselected
-Frontend ESLint                           PASS
-Frontend production build                 PASS
-Containerized full-stack validation        PASS
-GitHub Actions CI                          PASS
+Frontend ESLint                             PASS
+Frontend production build                   PASS
+Containerized full-stack validation         PASS
+GitHub Actions CI                           PASS
+GCP production deployment                   PASS
+Production end-to-end validation            PASS
 ```
 
 Current coverage includes:
@@ -352,6 +363,20 @@ Current coverage includes:
 The recommendation, direct recipe-search, clarification, no-results, failure, and recipe-detail workflows have also been validated through the completed React frontend.
 
 For details, see [`docs/testing.md`](docs/testing.md).
+
+Production validation additionally covers:
+
+- Cloud Run backend health
+- Cloud Run to Cloud SQL readiness
+- OpenAI tool selection
+- OpenAI embedding generation
+- production pgvector retrieval
+- frontend-to-backend Nginx proxying
+- recommendation and direct-search workflows
+- deterministic recipe-detail retrieval
+- clarification and no-results handling
+
+The production database contains the migrated 50,514-recipe corpus and its precomputed embeddings.
 
 ---
 
@@ -424,12 +449,65 @@ For details, see [`docs/testing.md`](docs/testing.md).
 - [x] GitHub Actions CI
 - [x] containerized full-stack validation
 
-### Next — Cloud Deployment & Observability
+### Phase VI — GCP Production Deployment
 
-- [ ] GCP deployment
-- [ ] OpenTelemetry and runtime observability
+- [x] GCP production architecture
+- [x] Artifact Registry
+- [x] Cloud SQL PostgreSQL 16 + pgvector
+- [x] production database migration
+- [x] 50,514 recipes and embeddings migrated
+- [x] dedicated backend service account and IAM
+- [x] Secret Manager integration
+- [x] backend Docker image built with Cloud Build
+- [x] FastAPI backend deployed to Cloud Run
+- [x] React/Nginx frontend deployed to Cloud Run
+- [x] production health and readiness validation
+- [x] production recommendation workflow
+- [x] production direct recipe-search workflow
+- [x] production recipe-detail workflow
+- [x] clarification and no-results validation
+- [x] production end-to-end validation
+
+### Next — Observability & Performance
+
+- [ ] evaluate runtime observability requirements
 - [ ] load and performance testing
-- [ ] production validation
+- [ ] bottleneck analysis
+- [ ] evidence-based optimization where necessary
+- [ ] final production validation and repository cleanup
+
+---
+
+## Production Deployment
+
+MealMuse is deployed on Google Cloud Platform.
+
+```text
+Browser
+   ↓
+Cloud Run — React + Nginx
+   ↓ /api/*
+Cloud Run — FastAPI
+   ├── OpenAI API
+   ↓
+Cloud SQL — PostgreSQL + pgvector
+```
+
+Production infrastructure includes:
+
+- Cloud Run for independently deployed frontend and backend services
+- Cloud SQL for PostgreSQL 16 + pgvector
+- Artifact Registry for container images
+- Cloud Build for production image builds
+- Secret Manager for database and OpenAI credentials
+- IAM with a dedicated least-privilege backend service account
+- GitHub Actions for continuous integration
+
+The production database contains the migrated 50,514-recipe corpus and precomputed 1536-dimensional embeddings.
+
+Production deployment remains manual for V1. Automated continuous deployment is deferred until deployment frequency or team size justifies the additional infrastructure and permissions.
+
+See `docs/deployment.md` for deployment details.
 
 ---
 

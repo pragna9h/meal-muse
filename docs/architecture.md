@@ -825,24 +825,38 @@ PostgreSQL + pgvector
 
 ---
 
-# 20. Next Architectural Phase
+# 20. Production Deployment
 
-MealMuse is now a production-oriented, containerized full-stack application with automated CI and operational health checks.
+MealMuse V1 is deployed on Google Cloud Platform.
 
-The next phase focuses on public cloud deployment and runtime observability rather than adding additional V1 product features.
+```text
+Browser
+   |
+   v
+Cloud Run
+React + Nginx
+   |
+   | /api/*
+   v
+Cloud Run
+FastAPI
+   |
+   +--> OpenAI API
+   |
+   v
+Cloud SQL
+PostgreSQL + pgvector
+```
 
-Planned work includes:
+Artifact Registry stores the frontend and backend container images. Google Cloud Build builds the production images.
 
-- deployment to GCP,
-- managed production infrastructure and configuration,
-- runtime observability and distributed tracing,
-- OpenTelemetry instrumentation,
-- metrics collection,
-- Prometheus/Grafana where justified by the deployed architecture,
-- load testing,
-- production failure validation,
-- final deployment documentation.
+The backend runs under a dedicated service account and accesses Cloud SQL and runtime secrets using IAM permissions. Database credentials and the OpenAI API key are stored in Secret Manager.
 
-The goal is to move the validated containerized application from the local Docker environment into a publicly accessible production environment and verify its behavior under realistic runtime conditions.
+The production PostgreSQL database contains the same 50,514-recipe corpus and embeddings used by the local system.
 
-Persistent conversational state, constraint merging across turns, and reference resolution remain deferred to a future V2 unless a concrete product requirement justifies them.
+The frontend and backend remain separate deployable services. Nginx serves the React application and proxies /api/* traffic to the backend Cloud Run service.
+
+Automated CI runs through GitHub Actions. Production CD remains manual for V1 and is documented as a future improvement.
+
+
+**NOTE:** Persistent conversational state, constraint merging across turns, and reference resolution remain deferred to a future V2 of the app.

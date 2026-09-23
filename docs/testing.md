@@ -537,19 +537,25 @@ GitHub Actions CI                   PASS
 Overall status                     PASS
 ```
 
-# 6. Planned Testing
+# 6. Production End-to-End Validation
 
-The cloud-deployment and observability phases will add validation for:
+The deployed GCP system was validated after deployment.
 
-- GCP deployment health
-- production environment configuration
-- deployed frontend/backend connectivity
-- deployed database connectivity
-- runtime tracing and observability
-- production dependency failures
-- load and performance behavior
-- production end-to-end validation
+Validated production paths:
 
-Additional infrastructure such as caching, distributed tracing, or metrics
-backends will only introduce corresponding tests if that infrastructure is
-actually added to MealMuse.
+- Cloud Run backend `/health`
+- Cloud Run backend `/ready`
+- Cloud Run to Cloud SQL connectivity
+- OpenAI tool selection
+- OpenAI embedding generation
+- pgvector hybrid retrieval
+- meal recommendation flow
+- direct recipe-search flow
+- deterministic recipe-detail retrieval
+- clarification handling
+- graceful no-result handling
+- React/Nginx frontend-to-backend proxying
+
+The production recommendation flow successfully returned ranked recommendations from the migrated 50,514-recipe database.
+
+Deployment testing also exposed and resolved environment-specific issues involving Cloud SQL configuration, database credential synchronization, and migrated-table permissions.
